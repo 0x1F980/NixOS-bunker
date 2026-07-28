@@ -1,0 +1,11 @@
+result
+result-*
+.direnv/
+*.qcow2
+*.img
+hardware-configuration.local.nix
+zones/*/home/
+zones/*/data/
+.DS_Store
+*.swp
+flake.lock.bak
