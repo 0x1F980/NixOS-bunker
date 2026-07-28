@@ -5,7 +5,7 @@
 
 ```bash
 git clone git@github.com:0x1F980/NixOS-bunker.git
-cd nixos-bunker
+cd NixOS-bunker
 
 # Optional: import a hardware overlay in hosts/bunker/configuration.nix
 #   ../../hardware/generic-x86_64.nix
@@ -13,13 +13,16 @@ cd nixos-bunker
 #   ../../hardware/mba52.nix
 
 sudo nixos-generate-config --show-hardware-config > hosts/bunker/hardware-configuration.nix
-# Edit passwords: replace initialPassword with hashedPassword
+# Edit passwords: replace initialPassword with hashedPassword (as admin)
 
 sudo nixos-rebuild switch --flake .#host   # as user `admin`
 bunker-zone-start net
 bunker-zone-start personal
 bunker-test-isolation
 ```
+
+**Repo:** https://github.com/0x1F980/NixOS-bunker  
+(Authenticated publish account for this flake; clone URL above.)
 
 ## Architecture
 
