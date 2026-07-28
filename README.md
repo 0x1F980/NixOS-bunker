@@ -4,7 +4,7 @@
 ## Quick start (on a NixOS machine)
 
 ```bash
-git clone git@github.com:0x1f4e7/nixos-bunker.git
+git clone git@github.com:0x1F980/NixOS-bunker.git
 cd nixos-bunker
 
 # Optional: import a hardware overlay in hosts/bunker/configuration.nix
