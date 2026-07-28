@@ -40,7 +40,7 @@ check "netVM documents nym ports" \
 check "clipboard script refuses guest→host" \
   grep -q 'REFUSING any guest' "$(dirname "$0")/clipboard-send.sh"
 
-if grep -A25 'users.users.bunker' "$(dirname "$0")/../modules/host-minimal.nix" | grep -q wheel; then
+if awk '/users.users.bunker/,/^  users.users.[a-z]/' "$(dirname "$0")/../modules/host-minimal.nix" | grep -q wheel; then
   echo "FAIL: bunker unexpectedly in wheel"
   FAIL=$((FAIL + 1))
 else
