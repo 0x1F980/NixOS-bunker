@@ -127,6 +127,25 @@ check "bunker-zone templates command" \
 check "bunker-term reaches net/usb" \
   grep -q '10.0.0.1' "$ROOT/scripts/zone-term.sh" && \
   grep -q '10.0.0.2' "$ROOT/scripts/zone-term.sh"
+check "operator manpage exists" \
+  test -f "$ROOT/man/bunker.1" && test -f "$ROOT/docs/MANUAL.txt"
+check "host ships man bunker + MANUAL" \
+  grep -q 'bunker.1' "$ROOT/modules/host-minimal.nix" && \
+  grep -q 'bunker/MANUAL' "$ROOT/modules/host-minimal.nix"
+check "host keeps emergency disk GUIs" \
+  grep -q 'gnome-disk-utility' "$ROOT/modules/host-minimal.nix" && \
+  grep -q 'gparted' "$ROOT/modules/host-minimal.nix" && \
+  grep -q 'nautilus' "$ROOT/modules/host-minimal.nix" && \
+  grep -q 'borgbackup' "$ROOT/modules/host-minimal.nix" && \
+  grep -q 'ddrescue' "$ROOT/modules/host-minimal.nix"
+check "host does not exclude disk utility" \
+  test -z "$(sed -n '/excludePackages/,/^  ];$/p' "$ROOT/modules/host-minimal.nix" | grep -E 'gnome-disk-utility|nautilus|baobab|gparted' || true)"
+check "help · service launcher" \
+  grep -q 'help · service' "$ROOT/modules/zones-ui.nix"
+check "zones · service CRUD TUI" \
+  test -f "$ROOT/tools/bunker-zones-tui/src/main.rs" && \
+  grep -q 'zones · service' "$ROOT/modules/zones-ui.nix" && \
+  grep -q 'bunker-zones-tui' "$ROOT/modules/zones-ui.nix"
 check "hardware-config is stub (must replace)" \
   grep -q 'STUB' "$ROOT/hosts/bunker/hardware-configuration.nix"
 

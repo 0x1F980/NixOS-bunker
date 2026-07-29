@@ -1,7 +1,15 @@
-# Minimal host (dom0-like): terminal, settings, qube launchers, bunker-* tools — nothing else.
+# Minimal host (dom0-like): terminal, settings, qube launchers, bunker-* tools,
+# plus emergency disk/backup GUIs for when VMs are unavailable — nothing else daily.
 # Daily apps live in AppVMs / Disposables / Templates (see modules/zones-ui.nix).
 { lib, pkgs, ... }:
 
+let
+  bunkerMan = pkgs.writeTextFile {
+    name = "bunker-manpage";
+    destination = "/share/man/man1/bunker.1";
+    text = builtins.readFile ../man/bunker.1;
+  };
+in
 {
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -9,6 +17,7 @@
   services.xserver.enable = true;
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
+  services.udisks2.enable = true; # Disks / GParted / Files mounts
 
   # Absolutely no GNOME "app store" junk on host
   services.gnome.core-apps.enable = false;
@@ -21,8 +30,9 @@
   services.gnome.rygel.enable = false;
   services.gnome.sushi.enable = false;
 
+  # Keep emergency recovery apps; strip consumer GNOME.
+  # KEPT (host menu): gnome-disk-utility, nautilus, baobab, gnome-text-editor, gnome-logs
   environment.gnome.excludePackages = with pkgs; [
-    baobab
     cheese
     epiphany
     evince
@@ -32,20 +42,16 @@
     gnome-characters
     gnome-clocks
     gnome-contacts
-    gnome-disk-utility
     gnome-font-viewer
-    gnome-logs
     gnome-maps
     gnome-music
     gnome-photos
     gnome-software
-    gnome-text-editor
     gnome-tour
     gnome-user-docs
     gnome-weather
     gnome-connections
     loupe
-    nautilus
     orca
     simple-scan
     snapshot
@@ -53,12 +59,12 @@
     yelp
   ];
 
-  # No NixOS manual / docs in menus
-  documentation.enable = false;
+  # man bunker only — no huge NixOS doc tree in menus
+  documentation.enable = true;
+  documentation.man.enable = true;
   documentation.nixos.enable = false;
   documentation.doc.enable = false;
   documentation.info.enable = false;
-  documentation.man.enable = false;
 
   xdg.portal = {
     enable = true;
@@ -99,13 +105,16 @@
   security.polkit.enable = true;
 
   environment.etc."bunker/scripts".source = ../scripts;
+  environment.etc."bunker/MANUAL".source = ../docs/MANUAL.txt;
 
-  # Host packages: zone/VM ops + tiny offline tools only (no consumer apps)
+  # Host packages: zone ops + emergency disk/backup (no consumer apps)
   environment.systemPackages = with pkgs; [
     git
     vim
     curl
     btop
+    jq
+    tmux
     qemu_kvm
     virtiofsd
     pciutils
@@ -114,8 +123,40 @@
     wl-clipboard
     socat
     sshpass
-    gnome-console # terminal for bunker-* commands
-    gnome-control-center # Wi‑Fi / display / power only
+    # Emergency GUI (also appear in GNOME app grid)
+    gnome-console
+    gnome-control-center
+    gnome-disk-utility
+    gnome-text-editor
+    gnome-logs
+    nautilus
+    baobab
+    gparted
+    # Emergency CLI — disk / FS / LUKS / backup / recovery
+    cryptsetup
+    parted
+    gptfdisk
+    smartmontools
+    nvme-cli
+    hdparm
+    lvm2
+    e2fsprogs
+    btrfs-progs
+    xfsprogs
+    dosfstools
+    ntfs3g
+    ddrescue
+    testdisk
+    rsync
+    borgbackup
+    bunkerMan
+    (writeShellScriptBin "bunker-help" ''
+      set -euo pipefail
+      if command -v man >/dev/null 2>&1 && man -w bunker >/dev/null 2>&1; then
+        exec man bunker "$@"
+      fi
+      exec ${pkgs.less}/bin/less /etc/bunker/MANUAL
+    '')
     (writeShellScriptBin "bunker-zone-start" ''
       exec /etc/bunker/scripts/zone-start.sh "$@"
     '')

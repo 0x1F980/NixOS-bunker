@@ -42,6 +42,7 @@ let
       colorName,
       category,
       keywords ? [ ],
+      terminal ? false,
     }:
     let
       icon = mkIcon id colorName;
@@ -49,7 +50,7 @@ let
     pkgs.makeDesktopItem {
       name = "qube-${id}";
       desktopName = title;
-      inherit comment exec;
+      inherit comment exec terminal;
       icon = "${icon}";
       categories = [
         category
@@ -124,6 +125,7 @@ let
   ) templateNames;
 
   brokerTui = pkgs.callPackage ../tools/bunker-broker-tui { };
+  zonesTui = pkgs.callPackage ../tools/bunker-zones-tui { };
 
   brokerLauncher = pkgs.writeShellScriptBin "bunker-broker" ''
     set -euo pipefail
@@ -133,6 +135,23 @@ let
       done
     fi
     BIN="${brokerTui}/bin/bunker-broker-tui"
+    if command -v kgx >/dev/null 2>&1; then
+      exec kgx -e "$BIN"
+    elif command -v gnome-terminal >/dev/null 2>&1; then
+      exec gnome-terminal -- "$BIN"
+    else
+      exec "$BIN"
+    fi
+  '';
+
+  zonesLauncher = pkgs.writeShellScriptBin "bunker-zones" ''
+    set -euo pipefail
+    if [[ -z "''${BUNKER_ZONES_JSON:-}" ]]; then
+      for p in "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
+        [[ -f "$p" ]] && export BUNKER_ZONES_JSON="$p" && break
+      done
+    fi
+    BIN="${zonesTui}/bin/bunker-zones-tui"
     if command -v kgx >/dev/null 2>&1; then
       exec kgx -e "$BIN"
     elif command -v gnome-terminal >/dev/null 2>&1; then
@@ -217,6 +236,19 @@ let
       keywords = [ "broker" ];
     })
     (mkLauncher {
+      id = "zones";
+      title = "zones · service";
+      comment = "ratatui — AppVM/Disposable CRUD (zones.json)";
+      exec = "bunker-zones";
+      colorName = "green";
+      category = "X-Qube-Service";
+      keywords = [
+        "crud"
+        "qube"
+        "zones"
+      ];
+    })
+    (mkLauncher {
       id = "killswitch";
       title = "killswitch · service";
       comment = "Enable app-VM WAN killswitch";
@@ -224,6 +256,20 @@ let
       colorName = "red";
       category = "X-Qube-Service";
       keywords = [ "killswitch" ];
+    })
+    (mkLauncher {
+      id = "help";
+      title = "help · service";
+      comment = "man bunker — operator manual";
+      exec = "bunker-help";
+      colorName = "gray";
+      category = "X-Qube-Service";
+      terminal = true;
+      keywords = [
+        "man"
+        "manual"
+        "help"
+      ];
     })
   ];
 
@@ -321,6 +367,8 @@ in
     pkgs.zenity
     brokerTui
     brokerLauncher
+    zonesTui
+    zonesLauncher
     templateEdit
     dirAppvm
     dirDisp
@@ -344,7 +392,13 @@ in
       Templates  — templates/*.nix (package sets); edit then nixos-rebuild
       AppVMs     — zones.json disposable=false (or kind=appvm)
       Disposables— zones.json disposable=true  (or kind=disposable)
-      Service    — netVM / usbVM brokers + killswitch + defaults TUI
+      Service    — netVM / usbVM / zones CRUD TUI / defaults TUI / killswitch / help
+
+    Manual:  man bunker   OR   /etc/bunker/MANUAL   OR   help · service
+
+    Zone CRUD (prefer TUI/CLI — not hand-editing Nix modules):
+      zones · service   OR   bunker-zones   OR   bunker-zone list|add|set|rm
+      Hand-edit config/zones.json is OK (same SoT). Then: nixos-rebuild switch
 
     CRUD:
       bunker-zone list|add|set|rm|apps|usb|templates

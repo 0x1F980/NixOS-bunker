@@ -1,0 +1,150 @@
+.\" Manpage for NixOS-bunker operator tools (host).
+.TH BUNKER 1 "July 2026" "nixos-bunker" "NixOS-bunker Manual"
+.SH NAME
+bunker \- NixOS-bunker host operator overview (Qubes-like zones)
+.SH SYNOPSIS
+.B bunker-zones
+.br
+.B bunker-zone
+.RI [ list | add | set | rm | \&.\&.\&. ]
+.br
+.B bunker-broker
+.br
+.B bunker-zone-start
+.IR zone | all
+.br
+.B bunker-term
+.I zone
+.br
+.B bunker-clip
+.RI [ send | copy | clear ]
+.br
+.B bunker-usb-attach
+.I zone vid:pid
+.br
+.B man bunker
+.SH DESCRIPTION
+NixOS-bunker is a hardened NixOS host with apps in microVM
+.B zones
+(AppVMs / Disposables / Templates), plus
+.B netVM
+and
+.B usbVM
+brokers. The host GNOME session is intentionally thin: launchers, terminal,
+settings, and emergency disk/backup tools for when VMs are unavailable.
+.PP
+Daily apps belong in zones. Do not install browsers or mail on the host.
+.PP
+Zone CRUD belongs in
+.B zones.json
+via
+.B bunker-zones
+(ratatui) or
+.BR bunker-zone
+(CLI). Hand-editing
+.I zones.json
+is fine. Hand-editing Nix modules for per-zone add/remove is
+.B discouraged .
+.SH HOST VS ZONES
+.TP
+.B Host (this machine)
+GNOME shell, zone launchers, bunker-* CLI, disk repair, backups of the host
+itself. Users: bunker (daily), admin (wheel / nixos-rebuild).
+.TP
+.B AppVM / Disposable
+Defined in
+.IR config/zones.json
+(CRUD via
+.B bunker-zones
+/
+.BR bunker-zone ).
+Templates live in
+.IR templates/*.nix .
+.TP
+.B Service
+net · netvm, usb · usbvm, zones · service, defaults · service, killswitch, help.
+.SH COMMANDS
+.TP
+.B bunker-zones
+Ratatui CRUD for AppVMs / Disposables (preferred UX). Launcher:
+.BR "zones · service" .
+.TP
+.B bunker-zone
+CLI CRUD zones, apps, USB defaults, colors, templates.
+.TP
+.B bunker-broker
+Ratatui net/usb broker defaults. Launcher:
+.BR "defaults · service" .
+.TP
+.B bunker-zone-start
+Start microVM(s); attaches zone USB defaults.
+.TP
+.B bunker-term
+Colored SSH shell into a zone (or net/usb).
+.TP
+.B bunker-clip send|copy|clear
+Mediated clipboard. Host clip kept on send; zone clip clears after TTL
+(default 30s; see
+.IR /etc/bunker/clipboard.conf ).
+.TP
+.B bunker-usb-attach / bunker-usb-detach
+usbVM broker (1→many) via usbip.
+.TP
+.B bunker-killswitch
+Block app-guest WAN; allow vm-net only.
+.TP
+.B bunker-wipe
+Wipe disposable zone data.
+.TP
+.B bunker-test-isolation
+Policy greps; optional
+.B --live
+probes.
+.TP
+.B bunker-first-boot / bunker-update
+First-boot checklist / pull+rebuild helper.
+.SH EMERGENCY HOST TOOLS
+When locked out of VMs, use host menu / PATH:
+.BR gnome-disks ,
+.BR gparted ,
+.BR nautilus ,
+.BR baobab ,
+.BR gnome-text-editor ,
+.BR gnome-logs ,
+plus CLI
+.BR cryptsetup ,
+.BR parted ,
+.BR smartctl ,
+.BR nvme ,
+.BR ddrescue ,
+.BR testdisk ,
+.BR rsync ,
+.BR borg .
+Prefer
+.B admin
+(sudo) for destructive disk work.
+.SH FILES
+.TP
+.I /etc/bunker/zones.json
+Installed zone registry (SoT is the flake checkout).
+.TP
+.I /etc/bunker/clipboard.conf
+Clipboard TTL (hackable).
+.TP
+.I /etc/bunker/MANUAL
+Plain-text copy of this overview (no man required).
+.TP
+.I /etc/bunker/qube-model
+Short Qubes-like model reminder.
+.SH SEE ALSO
+.IR docs/egress.md ,
+.IR docs/usb.md ,
+.IR docs/portability.md ,
+.IR docs/nym-bootstrap.md ,
+.IR docs/ADMIN-RECOVER.md
+in the nixos-bunker checkout;
+.BR bunker-zone (1)
+is this page (alias topic).
+.SH BUGS
+Stronger than a flat desktop, not Qubes. Report issues against the private
+NixOS-bunker repository.

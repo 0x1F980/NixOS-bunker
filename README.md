@@ -12,8 +12,10 @@
 | `modules/guests/` | netVM, usbVM, vault, `mk-app-zone` |
 | `modules/` | Host UI, clipboard, killswitch wiring, registry |
 | `scripts/` | Operator tools (`lib-common.sh`, `lib-arch.sh`) |
-| `tools/bunker-broker-tui/` | Ratatui defaults for net/usb (`defaults · service`) |
-| `docs/` | Topic docs only (egress, usb, portability, …) |
+| `tools/bunker-broker-tui/` | Ratatui net/usb defaults (`defaults · service`) |
+| `tools/bunker-zones-tui/` | Ratatui AppVM/Disposable CRUD (`zones · service`) |
+| `docs/` | Topic docs + `MANUAL.txt` (also `man bunker`) |
+| `man/bunker.1` | Operator manpage |
 | `hardware/mba52.nix` | Optional board overlay — **not** imported by default |
 
 ## Templates + zones (Qubes-like)
@@ -26,12 +28,17 @@
 | net/usb | folder **Service** — `net · netvm`, `usb · usbvm`, `defaults · service` |
 
 ```bash
+bunker-zones          # ratatui CRUD (preferred UX)
 bunker-zone list
 bunker-zone templates
 bunker-zone add throwaway --template browser --disposable
 bunker-zone set work template=dev internet=i2p
 bunker-zone set browse kind=disposable
 ```
+
+Prefer **zones · service** / `bunker-zones` / `bunker-zone` over editing Nix modules for per-zone CRUD.
+Hand-editing `config/zones.json` is fine (same source of truth); then `nixos-rebuild switch`.
+Do **not** hand-edit `modules/` just to add/remove a zone.
 
 `personal` / `work` / `browse` / `radio` are **examples** in `config/zones.json` (zone name is `radio`, not `sdr`).
 Infrastructure (not CRUD): **net**, **usb**, **vault**.
@@ -62,7 +69,9 @@ bunker-test-isolation --live
 
 | Command | Purpose |
 | --- | --- |
-| `bunker-zone …` | CRUD zones / apps / usb / colors |
+| `bunker-zone …` | CRUD zones / apps / usb / colors (CLI) |
+| `bunker-zones` / **zones · service** | Ratatui CRUD for AppVMs / Disposables |
+| `bunker-broker` / **defaults · service** | Ratatui net/usb broker defaults |
 | `bunker-zone-start <zone\|all>` | Start microVM(s) (+ USB defaults) |
 | `bunker-term <zone>` | Colored SSH shell into zone |
 | `bunker-wipe <zone>` | Wipe disposable zone data |
@@ -73,11 +82,15 @@ bunker-test-isolation --live
 | `bunker-killswitch enable` | Block app-guest→WAN; allow vm-net |
 | `bunker-first-boot` | First-boot checklist |
 | `bunker-test-isolation [--live]` | Policy (+ optional live) tests |
+| `man bunker` / `bunker-help` | Operator manpage (also **help · service**) |
 
 Clipboard TTL (default **30s**): edit `/etc/bunker/clipboard.conf` or `BUNKER_CLIP_TTL=60`.
 
+**Host emergency (VMs down):** Disks, GParted, Files, Disk Usage, Text Editor, Logs + CLI `cryptsetup` / `ddrescue` / `testdisk` / `rsync` / `borg`. Destructive work → `admin` + sudo.
+
 ## Docs
 
+- **`man bunker`** or [docs/MANUAL.txt](docs/MANUAL.txt) (`/etc/bunker/MANUAL`)
 - [docs/portability.md](docs/portability.md) — multi-ISA hosts
 - [docs/usb.md](docs/usb.md) — usbVM broker (1→many)
 - [docs/egress.md](docs/egress.md) — netVM / Nym / i2p / Tor
