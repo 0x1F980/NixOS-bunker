@@ -114,15 +114,16 @@ check "service net/usb launchers in zones-ui" \
   grep -q 'net · netvm' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'usb · usbvm' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'bunker-usb-gui' "$ROOT/modules/zones-ui.nix"
-check "voice · service mic anonymizer TUI" \
-  test -f "$ROOT/tools/bunker-voice-tui/src/main.rs" && \
+check "voice on/off in defaults broker TUI" \
   test -f "$ROOT/modules/guests/voice.nix" && \
-  grep -q 'voice · service' "$ROOT/modules/zones-ui.nix" && \
-  grep -q '10.0.0.3' "$ROOT/modules/guests/voice.nix"
+  grep -q '10.0.0.3' "$ROOT/modules/guests/voice.nix" && \
+  grep -q 'Screen::Voice\|toggle_voice\|voiceVM' "$ROOT/tools/bunker-broker-tui/src/main.rs" && \
+  test ! -d "$ROOT/tools/bunker-voice-tui"
 check "voice docs + attach scripts" \
   test -f "$ROOT/docs/voice.md" && \
   test -f "$ROOT/scripts/voice-attach.sh" && \
-  grep -q '"voice"' "$ROOT/config/zones.json"
+  grep -q '"voice"' "$ROOT/config/zones.json" && \
+  grep -q 'voice=on\|voice on/off\|Voice defaults' "$ROOT/docs/voice.md"
 check "qube folders AppVMs Disposables Templates" \
   grep -q 'X-Qube-AppVM' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'X-Qube-Template' "$ROOT/modules/zones-ui.nix" && \

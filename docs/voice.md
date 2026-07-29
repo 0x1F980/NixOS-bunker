@@ -2,34 +2,34 @@
 
 Same idea as **netVM** / **usbVM**: **one broker VM → many app zones**.
 
-App you meant is likely **[Chimera](https://pypi.org/project/chimera-voice/)** (local, speaker-irreversible anonymisation) or **[MorphMic](https://pypi.org/project/morphmic/)** (`anonymous` profile). voiceVM prefers Chimera; falls back to a sox “anonymous” chain.
+Physical mic → **voiceVM** (`10.0.0.3`) → Chimera (or sox fallback) → Pulse TCP → zones with **`voice: true`**.
 
-## Model
+## Per-zone control (on/off only)
 
+Use **defaults · service** (`bunker-broker`) → key **`3`**, or:
+
+```bash
+bunker-zone set personal voice=on
+bunker-zone set work voice=off
 ```
-[physical mic] --> [voiceVM 10.0.0.3] --Chimera/sox--> [Pulse tcp :4713] --> [app zones]
-```
 
-1. Start broker: `bunker-zone-start voice` (or **voice · service** → `v`)
-2. Set per-zone default: **voice · service** / `bunker-voice` → `voice=anon|chimera|none`
-3. On zone start (or `bunker-voice-attach <zone>`): zone uses `PULSE_SERVER=tcp:10.0.0.3:4713`
+No per-zone engine choice — anonymizer is global on voiceVM.
 
 ## Operator
 
 ```bash
 bunker-zone-start voice
-bunker-voice          # ratatui 1→many defaults
-bunker-zone set personal voice=chimera
-bunker-voice-attach personal
+bunker-broker                 # 3 = voice on/off
+bunker-voice-attach personal  # optional immediate tunnel
 bunker-voice-detach personal
 ```
 
-USB headset: attach to **voice** via usbVM/QMP policy (mic stays off AppVMs).
+On zone start, `voice: true` auto-runs attach.
 
 ## Limits (honest)
 
-- Chimera must be installed on voiceVM for full crypto anonymisation; sox fallback is weaker.
-- Presence of anonymizer software is not deniable.
-- Network Pulse on bunker LAN only — still trust voiceVM.
+- Chimera preferred when installed on voiceVM; sox fallback is weaker.
+- Software presence is not deniable.
+- Trust voiceVM for the anonymized stream.
 
-Defaults TUI sister: [bunker-broker-tui](../tools/bunker-broker-tui/) (net/usb).
+Sister defaults: net/usb in the same TUI.

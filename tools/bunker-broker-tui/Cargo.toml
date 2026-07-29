@@ -2,7 +2,7 @@
 name = "bunker-broker-tui"
 version = "0.1.0"
 edition = "2021"
-description = "Minimal ratatui UI for net/usb 1→many zone defaults"
+description = "Minimal ratatui UI for net/usb/voice 1→many zone defaults"
 license = "MIT"
 
 [dependencies]

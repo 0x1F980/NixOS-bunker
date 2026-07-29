@@ -88,15 +88,26 @@ start_one() {
           "$ROOT/scripts/usb-attach.sh" "$z" "$d" || echo "WARN: usb attach $d failed (VM may still be booting)"
         done
       fi
-      # Voice anonymizer default (voiceVM 10.0.0.3)
-      local vmode=""
+      # Voice anonymizer on/off (voiceVM 10.0.0.3)
+      local von=""
       if command -v python3 >/dev/null; then
-        vmode="$(python3 -c "import json;z=json.load(open('$ROOT/config/zones.json'));print(z.get('$z',{}).get('voice') or 'none')" 2>/dev/null || true)"
-        [[ -z "$vmode" ]] && [[ -f /etc/bunker/zones.json ]] && \
-          vmode="$(python3 -c "import json;z=json.load(open('/etc/bunker/zones.json'));print(z.get('$z',{}).get('voice') or 'none')" 2>/dev/null || true)"
+        von="$(python3 -c "
+import json
+z=json.load(open('$ROOT/config/zones.json'))
+v=z.get('$z',{}).get('voice', False)
+print('1' if v in (True,'on','true','1','anon','chimera') else '0')
+" 2>/dev/null || true)"
+        if [[ -z "$von" && -f /etc/bunker/zones.json ]]; then
+          von="$(python3 -c "
+import json
+z=json.load(open('/etc/bunker/zones.json'))
+v=z.get('$z',{}).get('voice', False)
+print('1' if v in (True,'on','true','1','anon','chimera') else '0')
+" 2>/dev/null || true)"
+        fi
       fi
-      if [[ -n "$vmode" && "$vmode" != "none" ]]; then
-        echo "==> voice default ($vmode) → voiceVM"
+      if [[ "$von" == "1" ]]; then
+        echo "==> voice=on → voiceVM anonymized mic"
         "$ROOT/scripts/voice-attach.sh" "$z" || echo "WARN: voice attach failed (is voiceVM up?)"
       fi
     fi

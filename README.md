@@ -9,13 +9,12 @@
 | --- | --- |
 | `config/zones.json` | **Source of truth** for AppVMs / Disposables (CRUD: `bunker-zone`) |
 | `templates/*.nix` | TemplateVM package sets |
-| `modules/guests/` | netVM, usbVM, vault, `mk-app-zone` |
+| `modules/guests/` | netVM, usbVM, voiceVM, vault, `mk-app-zone` |
 | `modules/` | Host UI, clipboard, killswitch wiring, registry |
 | `scripts/` | Operator tools (`lib-common.sh`, `lib-arch.sh`) |
-| `tools/bunker-broker-tui/` | Ratatui net/usb defaults (`defaults · service`) |
+| `tools/bunker-broker-tui/` | Ratatui net/usb/voice defaults (`defaults · service`) |
 | `tools/bunker-zones-tui/` | Ratatui AppVM/Disposable CRUD (`zones · service`) |
 | `tools/bunker-deniable-tui/` | Ratatui hidden whole-VMs / Shufflecake (`deniable · service`) |
-| `tools/bunker-voice-tui/` | Ratatui voiceVM mic anonymizer (`voice · service`) |
 | `config/deniable-zones.json` | Deniable whole-VM registry |
 | `docs/` | Topic docs + `MANUAL.txt` (also `man bunker`) |
 | `man/bunker.1` | Operator manpage |
@@ -76,8 +75,7 @@ bunker-test-isolation --live
 | `bunker-zones` / **zones · service** | Ratatui CRUD for AppVMs / Disposables |
 | `bunker-deniable` / **deniable · service** | Hide/show **whole** VMs (Shufflecake layers) |
 | `bunker-panic-ui` / **panic · service** | ☢ Wipe panic-flagged deniable keys + RAM wipe |
-| `bunker-broker` / **defaults · service** | Ratatui net/usb broker defaults |
-| `bunker-voice` / **voice · service** | Ratatui mic anonymizer 1→many (Chimera/anon) |
+| `bunker-broker` / **defaults · service** | Ratatui net/usb/voice 1→many (`voice` on/off) |
 | `bunker-zone-start <zone\|all>` | Start microVM(s) (+ USB defaults) |
 | `bunker-term <zone>` | Colored SSH shell into zone |
 | `bunker-wipe <zone>` | Wipe disposable zone data |

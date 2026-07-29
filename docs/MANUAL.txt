@@ -21,8 +21,7 @@ COMMANDS
   bunker-deniable                    # hide/show whole VMs (Shufflecake layers)
   bunker-panic-ui                    # ☢ panic — wipe panic-flagged deniable keys
   bunker-zone list|add|set|rm|apps|usb|templates|colors
-  bunker-broker                      # ratatui net/usb defaults
-  bunker-voice                       # ratatui mic anonymizer 1→many (Chimera/anon)
+  bunker-broker                      # ratatui net/usb/voice defaults (3=voice on/off)
   bunker-zone-start <zone|all>
   bunker-term <zone>                 # colored SSH (also: net, usb)
   bunker-clip send <zone>            # host→zone; host clip KEPT; zone TTL clear

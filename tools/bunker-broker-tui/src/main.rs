@@ -1,4 +1,4 @@
-//! Minimal ratatui app: set net + USB 1→many defaults in zones.json
+//! Minimal ratatui app: net + USB + voice (on/off) 1→many defaults in zones.json
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
@@ -9,7 +9,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Clear},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
     Frame, Terminal,
 };
 use serde_json::{json, Map, Value};
@@ -25,6 +25,7 @@ enum Screen {
     Home,
     Net,
     Usb,
+    Voice,
     Help,
 }
 
@@ -42,16 +43,25 @@ struct App {
 
 const NET_MODES: &[&str] = &["nym", "i2p", "tor", "none"];
 
+fn voice_on(z: &Value) -> bool {
+    match z.get("voice") {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::String(s)) => {
+            let s = s.to_lowercase();
+            matches!(s.as_str(), "on" | "true" | "1" | "anon" | "chimera")
+        }
+        _ => false,
+    }
+}
+
 impl App {
     fn load(path: PathBuf) -> io::Result<Self> {
         let raw = fs::read_to_string(&path)?;
-        let v: Value = serde_json::from_str(&raw).map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidData, e)
+        let v: Value = serde_json::from_str(&raw)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let zones = v.as_object().cloned().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "zones.json root must be object")
         })?;
-        let zones = v
-            .as_object()
-            .cloned()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "zones.json root must be object"))?;
         let mut zone_names: Vec<String> = zones.keys().cloned().collect();
         zone_names.sort();
         let mut list = ListState::default();
@@ -64,8 +74,7 @@ impl App {
             screen: Screen::Home,
             zone_names,
             list,
-            status: "netVM + usbVM are 1→many brokers. Edit defaults here, then rebuild/start."
-                .into(),
+            status: "net + usb + voice brokers (1→many). Edit defaults, then save.".into(),
             dirty: false,
             usb_input: String::new(),
             input_mode: false,
@@ -80,7 +89,6 @@ impl App {
         let v = Value::Object(self.zones.clone());
         let pretty = serde_json::to_string_pretty(&v)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        // backup
         let bak = self.zones_path.with_extension("json.bak");
         let _ = fs::copy(&self.zones_path, &bak);
         fs::write(&self.zones_path, pretty + "\n")?;
@@ -103,7 +111,39 @@ impl App {
         let next = NET_MODES[(idx + 1) % NET_MODES.len()];
         obj.insert("internet".into(), json!(next));
         self.dirty = true;
-        self.status = format!("{name}: internet → {next}  (needs: nixos-rebuild + zone restart)");
+        self.status = format!("{name}: internet → {next}");
+    }
+
+    fn toggle_voice(&mut self) {
+        let Some(name) = self.selected_zone().map(|s| s.to_string()) else {
+            return;
+        };
+        let on = {
+            let z = self.zones.get(&name).unwrap();
+            !voice_on(z)
+        };
+        let z = self.zones.get_mut(&name).unwrap();
+        let obj = z.as_object_mut().unwrap();
+        obj.insert("voice".into(), json!(on));
+        self.dirty = true;
+        self.status = format!(
+            "{name}: voice → {}  (anonymized mic via voiceVM)",
+            if on { "on" } else { "off" }
+        );
+    }
+
+    fn attach_voice_now(&mut self) {
+        let Some(name) = self.selected_zone().map(|s| s.to_string()) else {
+            return;
+        };
+        let on = voice_on(self.zones.get(&name).unwrap());
+        if on {
+            let _ = Command::new("bunker-voice-attach").arg(&name).status();
+            self.status = format!("{name}: attached → voiceVM anonymized mic");
+        } else {
+            let _ = Command::new("bunker-voice-detach").arg(&name).status();
+            self.status = format!("{name}: detached (voice off)");
+        }
     }
 
     fn add_usb(&mut self, devid: &str) {
@@ -125,7 +165,7 @@ impl App {
         }
         list.push(json!(devid));
         self.dirty = true;
-        self.status = format!("{name}: +usb {devid} (auto-attach on zone start via usbVM)");
+        self.status = format!("{name}: +usb {devid}");
     }
 
     fn rm_usb(&mut self) {
@@ -146,15 +186,27 @@ impl App {
         self.dirty = true;
         self.status = format!(
             "{name}: removed {}",
-            removed.and_then(|v| v.as_str().map(|s| s.to_string())).unwrap_or_default()
+            removed
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .unwrap_or_default()
         );
     }
 
     fn start_infra(&mut self, which: &str) {
         self.status = format!("Starting {which}…");
         let _ = Command::new("bunker-zone-start").arg(which).status();
-        self.status = format!("bunker-zone-start {which} (check terminal if it failed)");
+        self.status = format!("bunker-zone-start {which}");
     }
+}
+
+fn move_list(app: &mut App, delta: isize) {
+    let i = app.list.selected().unwrap_or(0) as isize + delta;
+    let n = app.zone_names.len() as isize;
+    if n == 0 {
+        return;
+    }
+    let i = ((i % n) + n) % n;
+    app.list.select(Some(i as usize));
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
@@ -168,9 +220,10 @@ fn ui(f: &mut Frame, app: &mut App) {
         .split(f.area());
 
     let title = match app.screen {
-        Screen::Home => "Bunker brokers — netVM + usbVM (1→many)",
+        Screen::Home => "Bunker brokers — netVM + usbVM + voiceVM (1→many)",
         Screen::Net => "NET defaults — which egress each zone uses",
         Screen::Usb => "USB / I/O defaults — devices auto-attached via usbVM",
+        Screen::Voice => "VOICE defaults — anonymized mic on/off per zone",
         Screen::Help => "Help",
     };
     let dirty = if app.dirty { "  [UNSAVED]" } else { "" };
@@ -183,7 +236,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     match app.screen {
         Screen::Home => draw_home(f, chunks[1], app),
-        Screen::Net | Screen::Usb => draw_zones(f, chunks[1], app),
+        Screen::Net | Screen::Usb | Screen::Voice => draw_zones(f, chunks[1], app),
         Screen::Help => draw_help(f, chunks[1]),
     }
 
@@ -191,9 +244,16 @@ fn ui(f: &mut Frame, app: &mut App) {
         format!("USB vid:pid> {}_   Enter=add  Esc=cancel", app.usb_input)
     } else {
         match app.screen {
-            Screen::Home => "1 net defaults  2 usb defaults  n start netVM  u start usbVM  w save  q quit  ?=help".into(),
-            Screen::Net => "↑↓ zone  Space/Enter cycle nym→i2p→tor→none  w save  Esc home  q quit".into(),
-            Screen::Usb => "↑↓ zone  a add vid:pid  d delete last  w save  Esc home  q quit".into(),
+            Screen::Home => {
+                "1 net  2 usb  3 voice  n/u/v start brokers  w save  q quit  ?=help".into()
+            }
+            Screen::Net => {
+                "↑↓ zone  Space/Enter cycle nym→i2p→tor→none  w save  Esc home".into()
+            }
+            Screen::Usb => "↑↓ zone  a add vid:pid  d delete last  w save  Esc home".into(),
+            Screen::Voice => {
+                "↑↓ zone  Space/Enter toggle on/off  a attach now  w save  Esc home".into()
+            }
             Screen::Help => "Esc back".into(),
         }
     };
@@ -230,14 +290,22 @@ fn draw_home(f: &mut Frame, area: Rect, app: &App) {
         Line::from(""),
         Line::from(Span::styled(
             "  usbVM  10.0.0.2",
-            Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from("    USB 1→many. Zone usb=[\"vid:pid\",…] auto-attach on start"),
         Line::from(""),
+        Line::from(Span::styled(
+            "  voiceVM  10.0.0.3",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from("    Mic anonymizer (Chimera/sox). Zone voice= on | off"),
+        Line::from(""),
         Line::from(format!("  zones.json: {}", app.zones_path.display())),
         Line::from(format!("  {} app zones loaded", app.zone_names.len())),
-        Line::from(""),
-        Line::from("Press 1 or 2 to edit defaults. Changes need: w save → rebuild host → restart zone."),
     ];
     f.render_widget(
         Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("overview")),
@@ -247,11 +315,12 @@ fn draw_home(f: &mut Frame, area: Rect, app: &App) {
 
 fn draw_help(f: &mut Frame, area: Rect) {
     let text = vec![
-        Line::from("Net: each zone picks ONE egress via netVM (still one Nym identity)."),
-        Line::from("USB: many zones may list a device; live attach = one zone (hardware)."),
-        Line::from("This TUI only edits defaults in zones.json — same as bunker-zone CLI."),
-        Line::from("After save: sudo nixos-rebuild switch --flake .#host"),
-        Line::from("Then: bunker-zone-start <zone>  (or click zone launcher)"),
+        Line::from("Net: each zone picks ONE egress via netVM."),
+        Line::from("USB: many zones may list a device; live attach = one holder."),
+        Line::from("Voice: on = zone uses voiceVM anonymized mic; off = no tunnel."),
+        Line::from("Engine (Chimera/sox) runs only on voiceVM — not chosen per zone."),
+        Line::from("After save: sudo nixos-rebuild switch --flake .#host (if guests changed)"),
+        Line::from("Then: bunker-zone-start <zone>"),
     ];
     f.render_widget(
         Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("help")),
@@ -265,10 +334,7 @@ fn draw_zones(f: &mut Frame, area: Rect, app: &mut App) {
         .iter()
         .map(|name| {
             let z = &app.zones[name];
-            let net = z
-                .get("internet")
-                .and_then(|x| x.as_str())
-                .unwrap_or("nym");
+            let net = z.get("internet").and_then(|x| x.as_str()).unwrap_or("nym");
             let usb = z
                 .get("usb")
                 .and_then(|x| x.as_array())
@@ -280,19 +346,22 @@ fn draw_zones(f: &mut Frame, area: Rect, app: &mut App) {
                 })
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "-".into());
-            let line = if app.screen == Screen::Net {
-                format!("{name:<12} internet={net}")
-            } else {
-                format!("{name:<12} usb=[{usb}]")
+            let voice = if voice_on(z) { "on" } else { "off" };
+            let line = match app.screen {
+                Screen::Net => format!("{name:<12} internet={net}"),
+                Screen::Usb => format!("{name:<12} usb=[{usb}]"),
+                Screen::Voice => format!("{name:<12} voice={voice}"),
+                _ => name.clone(),
             };
             ListItem::new(line)
         })
         .collect();
 
-    let title = if app.screen == Screen::Net {
-        "zones → netVM"
-    } else {
-        "zones → usbVM"
+    let title = match app.screen {
+        Screen::Net => "zones → netVM",
+        Screen::Usb => "zones → usbVM",
+        Screen::Voice => "zones → voiceVM (anonymized mic)",
+        _ => "zones",
     };
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title(title))
@@ -327,7 +396,6 @@ fn run() -> io::Result<()> {
             .unwrap_or_else(|| PathBuf::from("config/zones.json"))
         });
 
-    // Prefer writable checkout next to flake if /etc is read-only copy
     let path = {
         let home_repo = env::var("HOME")
             .ok()
@@ -398,8 +466,10 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                 KeyCode::Char('q') => break,
                 KeyCode::Char('1') => app.screen = Screen::Net,
                 KeyCode::Char('2') => app.screen = Screen::Usb,
+                KeyCode::Char('3') => app.screen = Screen::Voice,
                 KeyCode::Char('n') => app.start_infra("net"),
                 KeyCode::Char('u') => app.start_infra("usb"),
+                KeyCode::Char('v') => app.start_infra("voice"),
                 KeyCode::Char('w') => {
                     if let Err(e) = app.save() {
                         app.status = format!("save failed: {e}");
@@ -416,15 +486,8 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                         app.status = format!("save failed: {e}");
                     }
                 }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let i = app.list.selected().unwrap_or(0);
-                    let n = app.zone_names.len().saturating_sub(1);
-                    app.list.select(Some((i + 1).min(n)));
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    let i = app.list.selected().unwrap_or(0);
-                    app.list.select(Some(i.saturating_sub(1)));
-                }
+                KeyCode::Down | KeyCode::Char('j') => move_list(app, 1),
+                KeyCode::Up | KeyCode::Char('k') => move_list(app, -1),
                 KeyCode::Enter | KeyCode::Char(' ') => app.cycle_net(),
                 _ => {}
             },
@@ -436,20 +499,28 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                         app.status = format!("save failed: {e}");
                     }
                 }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let i = app.list.selected().unwrap_or(0);
-                    let n = app.zone_names.len().saturating_sub(1);
-                    app.list.select(Some((i + 1).min(n)));
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    let i = app.list.selected().unwrap_or(0);
-                    app.list.select(Some(i.saturating_sub(1)));
-                }
+                KeyCode::Down | KeyCode::Char('j') => move_list(app, 1),
+                KeyCode::Up | KeyCode::Char('k') => move_list(app, -1),
                 KeyCode::Char('a') => {
                     app.input_mode = true;
                     app.usb_input.clear();
                 }
                 KeyCode::Char('d') => app.rm_usb(),
+                _ => {}
+            },
+            Screen::Voice => match key.code {
+                KeyCode::Esc => app.screen = Screen::Home,
+                KeyCode::Char('q') => break,
+                KeyCode::Char('w') => {
+                    if let Err(e) = app.save() {
+                        app.status = format!("save failed: {e}");
+                    }
+                }
+                KeyCode::Down | KeyCode::Char('j') => move_list(app, 1),
+                KeyCode::Up | KeyCode::Char('k') => move_list(app, -1),
+                KeyCode::Enter | KeyCode::Char(' ') => app.toggle_voice(),
+                KeyCode::Char('a') => app.attach_voice_now(),
+                KeyCode::Char('v') => app.start_infra("voice"),
                 _ => {}
             },
             Screen::Help => {

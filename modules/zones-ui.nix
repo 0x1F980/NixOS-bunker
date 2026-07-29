@@ -145,7 +145,6 @@ let
   zonesTui = pkgs.callPackage ../tools/bunker-zones-tui { };
   deniableTui = pkgs.callPackage ../tools/bunker-deniable-tui { };
   panicTui = pkgs.callPackage ../tools/bunker-panic-tui { };
-  voiceTui = pkgs.callPackage ../tools/bunker-voice-tui { };
 
   brokerLauncher = pkgs.writeShellScriptBin "bunker-broker" ''
     set -euo pipefail
@@ -201,23 +200,6 @@ let
   panicLauncher = pkgs.writeShellScriptBin "bunker-panic-ui" ''
     set -euo pipefail
     BIN="${panicTui}/bin/bunker-panic-tui"
-    if command -v kgx >/dev/null 2>&1; then
-      exec kgx -e "$BIN"
-    elif command -v gnome-terminal >/dev/null 2>&1; then
-      exec gnome-terminal -- "$BIN"
-    else
-      exec "$BIN"
-    fi
-  '';
-
-  voiceLauncher = pkgs.writeShellScriptBin "bunker-voice" ''
-    set -euo pipefail
-    if [[ -z "''${BUNKER_ZONES_JSON:-}" ]]; then
-      for p in "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
-        [[ -f "$p" ]] && export BUNKER_ZONES_JSON="$p" && break
-      done
-    fi
-    BIN="${voiceTui}/bin/bunker-voice-tui"
     if command -v kgx >/dev/null 2>&1; then
       exec kgx -e "$BIN"
     elif command -v gnome-terminal >/dev/null 2>&1; then
@@ -317,25 +299,11 @@ let
     (mkLauncher {
       id = "defaults";
       title = "defaults · service";
-      comment = "ratatui — net/usb 1→many defaults";
+      comment = "ratatui — net/usb/voice 1→many defaults";
       exec = "bunker-broker";
       colorName = "blue";
       category = "X-Qube-Service";
       keywords = [ "broker" ];
-    })
-    (mkLauncher {
-      id = "voice-defaults";
-      title = "voice · service";
-      comment = "ratatui — mic anonymizer 1→many (Chimera/anon)";
-      exec = "bunker-voice";
-      colorName = "orange";
-      category = "X-Qube-Service";
-      keywords = [
-        "chimera"
-        "anonymizer"
-        "mic"
-        "voice"
-      ];
     })
     (mkLauncher {
       id = "zones";
@@ -502,8 +470,6 @@ in
     deniableLauncher
     panicTui
     panicLauncher
-    voiceTui
-    voiceLauncher
     templateEdit
     dirAppvm
     dirDisp
@@ -533,7 +499,7 @@ in
 
     Zone CRUD (prefer TUI/CLI — not hand-editing Nix modules):
       zones · service   OR   bunker-zones   OR   bunker-zone list|add|set|rm
-      voice · service  — mic anonymizer 1→many (Chimera / anon)
+      defaults · service — net/usb/voice 1→many (voice = on|off per zone)
       deniable · service — whole hidden VMs (Shufflecake layers)
       panic · service  — wipe panic-flagged deniable keys (☢)
       Hand-edit config/zones.json is OK (same SoT). Then: nixos-rebuild switch
@@ -542,6 +508,6 @@ in
       bunker-zone list|add|set|rm|apps|usb|templates
       bunker-zone add myvm --template desktop          # AppVM
       bunker-zone add throwaway --template browser --disposable
-      bunker-zone set myvm template=dev internet=i2p voice=chimera
+      bunker-zone set myvm template=dev internet=i2p voice=on
   '';
 }

@@ -12,7 +12,7 @@
     "internet": "nym",
     "usb": [],
     "apps": [],
-    "voice": "none"
+    "voice": false
   },
   "work": {
     "template": "dev",
@@ -27,7 +27,7 @@
     "internet": "nym",
     "usb": [],
     "apps": [],
-    "voice": "none"
+    "voice": false
   },
   "browse": {
     "template": "browser",
@@ -42,7 +42,7 @@
     "internet": "nym",
     "usb": [],
     "apps": [],
-    "voice": "none"
+    "voice": false
   },
   "radio": {
     "template": "radio",
@@ -59,6 +59,6 @@
       "0bda:2838"
     ],
     "apps": [],
-    "voice": "none"
+    "voice": false
   }
 }

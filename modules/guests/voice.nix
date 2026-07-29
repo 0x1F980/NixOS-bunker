@@ -145,9 +145,9 @@ in
   environment.etc."bunker/voice-policy".text = ''
     voiceVM (10.0.0.3) = mic anonymizer broker (1 → many), same idea as net/usb.
     Physical mic attaches to voiceVM only (USB QMP / host policy).
-    App zones with voice=anon|chimera use PULSE_SERVER=tcp:10.0.0.3:4713
-    Engine: Chimera (preferred) or sox anonymous fallback.
-    Defaults TUI: voice · service / bunker-voice
+    App zones with voice=true|on use PULSE_SERVER=tcp:10.0.0.3:4713
+    Engine: Chimera (preferred) or sox anonymous fallback (global on voiceVM).
+    Defaults TUI: defaults · service / bunker-broker (key 3 = voice on/off)
     See docs/voice.md
   '';
 

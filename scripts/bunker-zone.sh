@@ -202,10 +202,19 @@ for pair in os.environ["ARGS"].split():
             raise SystemExit("kind must be appvm|disposable")
         z[n][k] = v
         z[n]["disposable"] = v == "disposable"
-    elif k in ("template", "ip", "mac", "color", "internet", "voice"):
-        if k == "voice" and v not in ("none", "anon", "chimera"):
-            raise SystemExit("voice must be none|anon|chimera")
+    elif k in ("template", "ip", "mac", "color", "internet"):
         z[n][k] = v
+    elif k == "voice":
+        # on/off only — engine is global on voiceVM
+        truth = {"true", "1", "on", "yes", "anon", "chimera"}
+        falsy = {"false", "0", "off", "no", "none", ""}
+        vl = v.lower()
+        if vl in truth:
+            z[n][k] = True
+        elif vl in falsy:
+            z[n][k] = False
+        else:
+            raise SystemExit("voice must be on|off (true|false)")
     else:
         raise SystemExit(f"unsupported key: {k}")
 json.dump(z, open(path, "w"), indent=2)
