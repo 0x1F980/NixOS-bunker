@@ -5,11 +5,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+host_flake_attr() {
+  case "$(uname -m)" in
+    aarch64 | arm64) echo "host-aarch64" ;;
+    *) echo "host" ;;
+  esac
+}
+HOST_ATTR="$(host_flake_attr)"
+
 echo "==> flake update (conscious)"
 nix flake update
 
-echo "==> rebuild host"
-sudo nixos-rebuild switch --flake .#host
+echo "==> rebuild host (.#$HOST_ATTR)"
+sudo nixos-rebuild switch --flake ".#$HOST_ATTR"
 
 echo "==> rebuild/restart guests as needed"
 echo "  system: net usb vault"
@@ -18,10 +26,10 @@ if [[ -f /etc/bunker/zones.tsv ]]; then
     echo "  app: consider systemctl restart microvm@$z.service  (or: bunker-zone-start $z)"
   done
 else
-  echo "  app zones: see config/zones.nix / bunker-zone-start"
+  echo "  app zones: see config/zones.json / bunker-zone-start"
 fi
 
 echo "==> wipe disposables if needed"
-echo "  bunker-wipe browse   # or any disposable from zones.nix"
+echo "  bunker-wipe browse   # or any disposable from zones.json"
 
 echo "Done. Review generations: nixos-rebuild list-generations"

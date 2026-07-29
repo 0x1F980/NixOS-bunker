@@ -75,6 +75,14 @@ check "app zones have vhci client" \
 check "microvm QMP socket configured" \
   grep -q 'socket = lib.mkDefault "/run/microvm' "$ROOT/modules/guests/microvm-base.nix"
 
+check "flake wires aarch64 zone packages" \
+  grep -q 'aarch64-linux' "$ROOT/flake.nix"
+check "flake wires x86_64 and aarch64 supportedSystems" \
+  grep -q 'supportedSystems' "$ROOT/flake.nix"
+check "portability docs exist" \
+  test -f "$ROOT/docs/portability.md"
+check "first-boot picks host-aarch64 on ARM" \
+  grep -q 'host-aarch64' "$ROOT/scripts/first-boot.sh"
 check "hardware-config is stub (must replace)" \
   grep -q 'STUB' "$ROOT/hosts/bunker/hardware-configuration.nix"
 

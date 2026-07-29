@@ -1,7 +1,16 @@
 # Hardened, reproducible, compartmentalized NixOS workstation (KVM/microVM).
-# Not Qubes — more portable than Qubes (ARM + lower RAM via on-demand zones).
+# Not Qubes — portable across **x86_64 and aarch64** (native ISA + KVM; see [docs/portability.md](docs/portability.md)).
 
 **Repo:** https://github.com/0x1F980/NixOS-bunker
+
+## CPU portability
+
+| Machine | Host flake | Zones |
+| --- | --- | --- |
+| Intel/AMD x86_64 | `.#host` | `nix run .#zone-*` (auto) |
+| ARM aarch64 | `.#host-aarch64` | same — picks `packages.aarch64-linux` |
+
+Same repo. Host and guests must match the machine’s ISA (KVM). Details: [docs/portability.md](docs/portability.md).
 
 ## Templates + zones (Qubes-like)
 
@@ -28,7 +37,7 @@ bunker-zone apps throwaway add htop
 bunker-zone usb radio add 0bda:2838
 bunker-zone rm throwaway
 # then:
-sudo nixos-rebuild switch --flake .#host
+sudo nixos-rebuild switch --flake .#host   # or .#host-aarch64 on ARM
 bunker-zone-start throwaway
 bunker-term throwaway          # colored terminal into the zone
 ```
@@ -40,10 +49,11 @@ Infrastructure (not CRUD): **net**, **usb**, **vault**.
 ## Status (Phase 2)
 
 Phase 2 **config complete**: host/zone eval+build paths, microVM net, Nym/**i2p**/Tor egress,
-USB/clipboard, zone CRUD + colors, first-boot docs — pushed to GitHub.
+USB/clipboard, zone CRUD + colors, **x86_64 + aarch64 zone packages**, first-boot docs — pushed to GitHub.
 
 ```bash
 nix build path:.#nixosConfigurations.host.config.system.build.toplevel
+nix build path:.#packages.aarch64-linux.zone-net   # ARM zones wired
 nix build path:.#zone-net
 bunker-test-isolation
 bunker-zone list
@@ -61,7 +71,10 @@ bunker-first-boot
 # edit zones: bunker-zone add|set|…   OR  nano config/zones.json
 sudo nixos-generate-config --show-hardware-config > hosts/bunker/hardware-configuration.nix
 # hashed passwords in modules/host-minimal.nix
+# x86_64:
 sudo nixos-rebuild switch --flake .#host
+# aarch64:
+# sudo nixos-rebuild switch --flake .#host-aarch64
 bunker-killswitch enable
 bunker-zone-start net
 bunker-zone-start personal
@@ -87,6 +100,7 @@ bunker-test-isolation --live
 
 ## Docs
 
+- [docs/portability.md](docs/portability.md) — x86_64 + aarch64
 - [docs/usb.md](docs/usb.md) — usbVM broker (1→many)
 - [docs/egress.md](docs/egress.md) — netVM / Nym / i2p / Tor
 - [docs/nym-bootstrap.md](docs/nym-bootstrap.md)

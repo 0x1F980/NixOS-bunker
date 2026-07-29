@@ -9,7 +9,7 @@ TARGET="${1:-}"
 usage() {
   echo "Usage: $0 [all|net|usb|vault|<app-zone>]"
   echo "  App zones come from config/zones.nix (see /etc/bunker/zones.tsv on host)."
-  echo "  Runs: nix run \"\$ROOT#zone-<name>\""
+  echo "  Runs: nix run \"\$ROOT#zone-<name>\"  (native arch: x86_64 or aarch64)"
 }
 
 list_app_zones() {

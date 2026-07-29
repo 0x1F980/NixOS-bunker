@@ -1,7 +1,8 @@
 # STUB — replace on the target machine:
 #   sudo nixos-generate-config --show-hardware-config > hosts/bunker/hardware-configuration.nix
 #
-# This stub exists so the flake can be evaluated before install.
+# Platform-agnostic stub so both x86_64 and aarch64 hosts can evaluate.
+# Flake sets nixpkgs.hostPlatform via mkHost + hardware/*.nix overlays.
 {
   config,
   lib,
@@ -14,13 +15,15 @@
 
   boot.initrd.availableKernelModules = [
     "xhci_pci"
-    "ahci"
     "usbhid"
     "usb_storage"
     "sd_mod"
+    "virtio_pci"
+    "virtio_blk"
   ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-intel" ];
+  # KVM module names come from hardware/generic-x86_64.nix or hardware/aarch64-generic.nix
+  boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
 
   # Placeholder root — MUST be replaced with real LUKS/filesystems from nixos-generate-config.
@@ -37,6 +40,4 @@
   swapDevices = [ ];
 
   networking.useDHCP = lib.mkDefault true;
-  nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
-  hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }
