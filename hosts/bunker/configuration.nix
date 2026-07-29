@@ -15,7 +15,6 @@
     ../../modules/hardening-sysctl.nix
     ../../modules/hardening-storage.nix
     ../../modules/clipboard-oneway.nix
-    ../../modules/nym-netvm.nix
     ../../modules/microvm-network.nix
     ../../modules/zones-registry.nix
     ../../modules/zones-ui.nix

@@ -1,4 +1,5 @@
-# Minimal host: GNOME shell + zone launchers + VM ops. No daily apps (those are in VMs).
+# Minimal host (dom0-like): terminal, settings, qube launchers, bunker-* tools — nothing else.
+# Daily apps live in AppVMs / Disposables / Templates (see modules/zones-ui.nix).
 { lib, pkgs, ... }:
 
 {
@@ -123,9 +124,6 @@
     '')
     (writeShellScriptBin "bunker-usb-detach" ''
       exec /etc/bunker/scripts/usb-detach.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-clipboard-send" ''
-      exec /etc/bunker/scripts/clipboard.sh send "$@"
     '')
     (writeShellScriptBin "bunker-clip" ''
       exec /etc/bunker/scripts/clipboard.sh "$@"

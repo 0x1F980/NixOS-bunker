@@ -9,11 +9,13 @@
 # Usage: bunker-usb-attach <zone> <vendorId:productId>
 set -euo pipefail
 
+# shellcheck source=lib-common.sh
+source "$(dirname "$0")/lib-common.sh"
+
 ZONE="${1:-}"
 DEVID="${2:-}"
 STATE_DIR="${BUNKER_USB_STATE:-/var/lib/bunker/usb-assign}"
 MON_DIR="${BUNKER_QEMU_MON:-/var/lib/microvms}"
-ZONE_PASS="${BUNKER_ZONE_PASS:-zone}"
 USB_IP="10.0.0.2"
 
 usage() {
@@ -44,35 +46,6 @@ find_mon() {
   return 1
 }
 
-ssh_z() {
-  local ip="$1"
-  shift
-  local opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8)
-  if command -v sshpass >/dev/null 2>&1; then
-    sshpass -p "$ZONE_PASS" ssh "${opts[@]}" -o PreferredAuthentications=password \
-      -o PubkeyAuthentication=no "zone@${ip}" "$@"
-  else
-    ssh "${opts[@]}" "zone@${ip}" "$@"
-  fi
-}
-
-lookup_zone_ip() {
-  local name="$1"
-  case "$name" in
-    usb) echo "$USB_IP"; return ;;
-    net) echo 10.0.0.1; return ;;
-    vault) echo ""; return ;;
-    sdr) name=radio ;;
-  esac
-  if [[ -f /etc/bunker/zones.json ]]; then
-    python3 -c "import json;z=json.load(open('/etc/bunker/zones.json'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null && return
-  fi
-  if [[ -f "$(dirname "$0")/../config/zones.json" ]]; then
-    python3 -c "import json;z=json.load(open('$(dirname "$0")/../config/zones.json'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null && return
-  fi
-  echo ""
-}
-
 if [[ -z "$ZONE" || -z "$DEVID" ]]; then
   usage
   exit 1
@@ -86,7 +59,7 @@ if [[ "$ZONE" == "usb" || "$ZONE" == "net" || "$ZONE" == "vault" ]]; then
   exit 1
 fi
 
-ZIP="$(lookup_zone_ip "$ZONE")"
+ZIP="$(bunker_zone_ip "$ZONE")"
 [[ -n "$ZIP" ]] || {
   echo "ERROR: unknown zone IP for $ZONE" >&2
   exit 1
@@ -105,7 +78,7 @@ MON="$(find_mon usb || true)"
 }
 
 # If already listed on usb via lsusb, skip QMP; else device_add
-if ! ssh_z "$USB_IP" "sudo lsusb -d $DEVID" >/dev/null 2>&1; then
+if ! bunker_ssh_zone "$USB_IP" "sudo lsusb -d $DEVID" >/dev/null 2>&1; then
   echo "==> QMP: attach $DEVID to usbVM"
   CMD=$(printf '{"execute":"device_add","arguments":{"driver":"usb-host","vendorid":%s,"productid":%s,"id":"%s","bus":"xhci.0"}}' \
     "$((0x${VENDOR}))" "$((0x${PRODUCT}))" "$USBID")
@@ -118,7 +91,7 @@ fi
 
 # --- 2) Bind/export on usbVM ---
 echo "==> usbVM: bind/export $DEVID"
-BUSID="$(ssh_z "$USB_IP" "sudo bunker-usb-broker bind $DEVID" | tail -n1 | tr -d '\r')"
+BUSID="$(bunker_ssh_zone "$USB_IP" "sudo bunker-usb-broker bind $DEVID" | tail -n1 | tr -d '\r')"
 if [[ -z "$BUSID" || "$BUSID" == ERROR* ]]; then
   echo "ERROR: could not bind $DEVID on usbVM (got: ${BUSID:-empty})" >&2
   exit 1
@@ -130,17 +103,17 @@ if [[ -f "$STATE_DIR/$DEVID" ]]; then
   cur="$(cut -d' ' -f1 "$STATE_DIR/$DEVID")"
   if [[ "$cur" != "$ZONE" && -n "$cur" ]]; then
     echo "==> move: detach from $cur"
-    CIP="$(lookup_zone_ip "$cur")"
+    CIP="$(bunker_zone_ip "$cur")"
     if [[ -n "$CIP" ]]; then
-      ssh_z "$CIP" "sudo usbip detach -p 0" 2>/dev/null || \
-        ssh_z "$CIP" "sudo usbip detach -p 1" 2>/dev/null || true
+      bunker_ssh_zone "$CIP" "sudo usbip detach -p 0" 2>/dev/null || \
+        bunker_ssh_zone "$CIP" "sudo usbip detach -p 1" 2>/dev/null || true
     fi
   fi
 fi
 
 # --- 4) Import into target zone ---
 echo "==> $ZONE ($ZIP): usbip attach from $USB_IP"
-ssh_z "$ZIP" "sudo usbip attach -r $USB_IP -b $BUSID"
+bunker_ssh_zone "$ZIP" "sudo usbip attach -r $USB_IP -b $BUSID"
 
 echo "$ZONE $BUSID" >"$STATE_DIR/$DEVID"
 echo "OK: $DEVID brokered usbVM → $ZONE (1 usbVM → many zones; this device live on $ZONE)"

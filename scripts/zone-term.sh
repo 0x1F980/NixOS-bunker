@@ -3,26 +3,12 @@
 # Usage: bunker-term <zone>
 set -euo pipefail
 
+# shellcheck source=lib-common.sh
+source "$(dirname "$0")/lib-common.sh"
+
 ZONE="${1:-}"
-ZONE_PASS="${BUNKER_ZONE_PASS:-zone}"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Prefer checkout; on host /etc/bunker/scripts → look beside zones.json
-if [[ -z "${BUNKER_ZONES_JSON:-}" ]]; then
-  for p in \
-    "$ROOT/config/zones.json" \
-    "$HOME/nixos-bunker/config/zones.json" \
-    /etc/bunker/zones.json
-  do
-    if [[ -f "$p" ]]; then
-      ZONES_JSON="$p"
-      break
-    fi
-  done
-else
-  ZONES_JSON="$BUNKER_ZONES_JSON"
-fi
-ZONES_JSON="${ZONES_JSON:-$ROOT/config/zones.json}"
-COLORS_NIX="$ROOT/config/colors.nix"
+ROOT="$(bunker_repo_root)"
+ZONES_JSON="$(bunker_zones_json)"
 
 if [[ -z "$ZONE" ]]; then
   echo "Usage: $0 <zone>"
@@ -42,8 +28,6 @@ lookup() {
 import json, sys
 z = json.load(open(sys.argv[1]))
 n = sys.argv[2]
-if n == "sdr":
-    n = "radio"
 if n not in z:
     raise SystemExit(f"unknown zone: {n}")
 c = z[n]
@@ -90,12 +74,4 @@ exec bash -l
 EOF
 )
 
-ssh_opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5)
-if [[ -n "${BUNKER_ZONE_SSH_KEY:-}" && -f "${BUNKER_ZONE_SSH_KEY}" ]]; then
-  exec ssh -t -i "$BUNKER_ZONE_SSH_KEY" "${ssh_opts[@]}" "zone@${IP}" "$REMOTE_INIT"
-elif command -v sshpass >/dev/null 2>&1; then
-  exec sshpass -p "$ZONE_PASS" ssh -t "${ssh_opts[@]}" -o PreferredAuthentications=password \
-    -o PubkeyAuthentication=no "zone@${IP}" "$REMOTE_INIT"
-else
-  exec ssh -t "${ssh_opts[@]}" "zone@${IP}" "$REMOTE_INIT"
-fi
+exec bunker_ssh_zone -t "$IP" "$REMOTE_INIT"

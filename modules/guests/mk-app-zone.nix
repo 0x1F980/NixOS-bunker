@@ -32,7 +32,7 @@ let
     else if internet == "tor" || internet == "tor-fallback" then
       socks + 2000
     else
-      socks; # nym | proxy
+      socks; # nym (default)
   useProxy = socksPort != null && internet != "none";
 in
 {

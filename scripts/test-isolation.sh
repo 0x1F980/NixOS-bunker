@@ -67,6 +67,27 @@ check "clipboard.conf is hackable" \
   grep -q 'clipboard.conf' "$ROOT/modules/clipboard-oneway.nix" && \
   grep -q 'TTL=30' "$ROOT/modules/clipboard-oneway.nix"
 
+check "lib-common shared helpers" \
+  test -f "$ROOT/scripts/lib-common.sh" && \
+  grep -q 'bunker_zone_ip' "$ROOT/scripts/lib-common.sh" && \
+  grep -q 'bunker_ssh_zone' "$ROOT/scripts/lib-common.sh"
+check "operator scripts source lib-common" \
+  grep -q 'lib-common.sh' "$ROOT/scripts/clipboard.sh" && \
+  grep -q 'lib-common.sh' "$ROOT/scripts/usb-attach.sh" && \
+  grep -q 'lib-common.sh' "$ROOT/scripts/zone-term.sh" && \
+  grep -q 'lib-common.sh' "$ROOT/scripts/bunker-zone.sh"
+check "no legacy zones/ stub tree" test ! -d "$ROOT/zones"
+check "no tap-net / clipboard-send / nym-netvm" \
+  test ! -f "$ROOT/modules/guests/tap-net.nix" && \
+  test ! -f "$ROOT/scripts/clipboard-send.sh" && \
+  test ! -f "$ROOT/modules/nym-netvm.nix"
+check "no sdr zone alias" \
+  test -z "$(grep -hnE '\bsdr\b' \
+    "$ROOT/scripts/usb-attach.sh" \
+    "$ROOT/scripts/usb-detach.sh" \
+    "$ROOT/scripts/zone-start.sh" \
+    "$ROOT/scripts/zone-term.sh" 2>/dev/null || true)"
+
 check "USB attach speaks QMP to usbVM only" \
   grep -q 'qmp_capabilities' "$ROOT/scripts/usb-attach.sh"
 check "USB attach uses usbip broker" \
@@ -122,10 +143,10 @@ if [[ "$LIVE" -eq 1 ]]; then
   if ping -c1 -W2 10.0.0.13 >/dev/null 2>&1; then
     if ssh -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no zone@10.0.0.13 \
       'curl -m 5 -I https://example.com' >/dev/null 2>&1; then
-      echo "FAIL: browse clearnet without proxy succeeded (must fail)"
+      echo "FAIL: browse clearnet without mixnet succeeded (must fail)"
       FAIL=$((FAIL + 1))
     else
-      echo "PASS: browse clearnet without proxy failed"
+      echo "PASS: browse clearnet without mixnet failed"
       PASS=$((PASS + 1))
     fi
   else

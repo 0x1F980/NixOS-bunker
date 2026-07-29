@@ -1,3 +1,3 @@
-# Zone registry — source of truth is zones.json (CRUD via: bunker-zone).
-# Do not hand-edit this file; edit zones.json or run bunker-zone add|set|rm.
+# Zone registry loader — JSON is the source of truth (CRUD: bunker-zone).
+# Keep kind + disposable in sync in zones.json; this file only parses it.
 builtins.fromJSON (builtins.readFile ./zones.json)

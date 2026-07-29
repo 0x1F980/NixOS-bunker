@@ -98,13 +98,6 @@ for z in "${SYSTEM_ZONES[@]}" "${APP_ZONES[@]}"; do
   fi
 done
 
-# compat: old name sdr → radio
-if [[ "$TARGET" == "sdr" ]]; then
-  echo "NOTE: zone 'sdr' renamed to 'radio' (template). Starting radio."
-  start_one radio
-  exit 0
-fi
-
 echo "Unknown zone: $TARGET" >&2
 usage
 exit 1

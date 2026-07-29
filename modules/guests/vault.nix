@@ -1,4 +1,4 @@
-# vault — crypto only, no network interface
+# vault — air-gapped storage AppVM: crypto tools only, no NIC (lib.mkForce []).
 { pkgs, lib, ... }:
 
 {

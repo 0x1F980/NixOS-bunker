@@ -3,10 +3,18 @@
 
 **Repo:** https://github.com/0x1F980/NixOS-bunker
 
-## CPU portability
+## Layout
 
-Ceiling = **all Linux ISAs in nixpkgs** (AMD/Intel, ARM 32/64, RISC-V, POWER, MIPS, LoongArch, s390x, …).  
-See [docs/portability.md](docs/portability.md). `bunker-first-boot` picks `.#host` / `.#host-<cpu>` from `uname`.
+| Path | Role |
+| --- | --- |
+| `config/zones.json` | **Source of truth** for AppVMs / Disposables (CRUD: `bunker-zone`) |
+| `templates/*.nix` | TemplateVM package sets |
+| `modules/guests/` | netVM, usbVM, vault, `mk-app-zone` |
+| `modules/` | Host UI, clipboard, killswitch wiring, registry |
+| `scripts/` | Operator tools (`lib-common.sh`, `lib-arch.sh`) |
+| `tools/bunker-broker-tui/` | Ratatui defaults for net/usb (`defaults · service`) |
+| `docs/` | Topic docs only (egress, usb, portability, …) |
+| `hardware/mba52.nix` | Optional board overlay — **not** imported by default |
 
 ## Templates + zones (Qubes-like)
 
@@ -25,25 +33,8 @@ bunker-zone set work template=dev internet=i2p
 bunker-zone set browse kind=disposable
 ```
 
-`personal` / `work` / `browse` / `radio` are **examples** in `config/zones.json`.
-
+`personal` / `work` / `browse` / `radio` are **examples** in `config/zones.json` (zone name is `radio`, not `sdr`).
 Infrastructure (not CRUD): **net**, **usb**, **vault**.
-
-## Status (Phase 2)
-
-Phase 2 **config complete**: host/zone eval+build paths, microVM net, Nym/**i2p**/Tor egress,
-USB/clipboard, zone CRUD + colors, **x86_64 + aarch64 zone packages**, first-boot docs — pushed to GitHub.
-
-```bash
-nix build path:.#nixosConfigurations.host.config.system.build.toplevel
-nix build path:.#packages.aarch64-linux.zone-net   # ARM zones wired
-nix build path:.#zone-net
-bunker-test-isolation
-bunker-zone list
-```
-
-Still on **you** for a live machine: replace hardware stub, hashed passwords,
-`nixos-rebuild switch`, `bunker-zone-start net`, then `bunker-test-isolation --live`.
 
 ## First boot
 
@@ -65,6 +56,8 @@ bunker-term personal
 bunker-test-isolation --live
 ```
 
+`bunker-first-boot` picks `.#host` / `.#host-<cpu>` from `uname` ([docs/portability.md](docs/portability.md)).
+
 ## Operator tools
 
 | Command | Purpose |
@@ -77,15 +70,15 @@ bunker-test-isolation --live
 | `bunker-clip send <zone>` | Host → zone (host clip **kept**; zone clip clears after TTL) |
 | `bunker-clip copy <a> <b>` | Zone → zone (mediated; not on host clip) |
 | `bunker-clip clear` | Wipe staging + host clipboard **now** |
-
-Clipboard TTL (default **30s**): edit `/etc/bunker/clipboard.conf` or `BUNKER_CLIP_TTL=60`.
 | `bunker-killswitch enable` | Block app-guest→WAN; allow vm-net |
 | `bunker-first-boot` | First-boot checklist |
 | `bunker-test-isolation [--live]` | Policy (+ optional live) tests |
 
+Clipboard TTL (default **30s**): edit `/etc/bunker/clipboard.conf` or `BUNKER_CLIP_TTL=60`.
+
 ## Docs
 
-- [docs/portability.md](docs/portability.md) — x86_64 + aarch64
+- [docs/portability.md](docs/portability.md) — multi-ISA hosts
 - [docs/usb.md](docs/usb.md) — usbVM broker (1→many)
 - [docs/egress.md](docs/egress.md) — netVM / Nym / i2p / Tor
 - [docs/nym-bootstrap.md](docs/nym-bootstrap.md)
@@ -94,8 +87,6 @@ Clipboard TTL (default **30s**): edit `/etc/bunker/clipboard.conf` or `BUNKER_CL
 ## Threat model (honest)
 
 Stronger than a flat desktop, **not** Qubes. Goal: contain compromise to a zone. Closures **build**; runtime proof needs `switch` + `--live`.
-
-**Hackable zones:** `personal`/`work`/`browse`/`radio` are **examples**. Real use = `bunker-zone …` → `config/zones.json` + `templates/`.
 
 | Resource | Model |
 | --- | --- |

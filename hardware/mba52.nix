@@ -1,4 +1,5 @@
-# Optional MacBookAir5,2 overlay — NOT required; portable-first defaults live elsewhere.
+# Optional MacBookAir5,2 overlay — board-specific; NOT imported by default.
+# Portable-first defaults: hardware/generic-linux.nix + hosts/bunker/hardware-configuration.nix.
 {
   lib,
   pkgs,

@@ -13,13 +13,11 @@
 #   bunker-zone colors
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-if [[ -z "${BUNKER_ZONES_JSON:-}" ]]; then
-  for p in "$ROOT/config/zones.json" "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
-    [[ -f "$p" ]] && { ZONES_JSON="$p"; break; }
-  done
-fi
-ZONES_JSON="${BUNKER_ZONES_JSON:-${ZONES_JSON:-$ROOT/config/zones.json}}"
+# shellcheck source=lib-common.sh
+source "$(dirname "$0")/lib-common.sh"
+
+ROOT="$(bunker_repo_root)"
+ZONES_JSON="$(bunker_zones_json)"
 COLORS_NIX="$ROOT/config/colors.nix"
 TEMPLATES_DIR="$ROOT/templates"
 [[ -d "$TEMPLATES_DIR" ]] || TEMPLATES_DIR="$HOME/nixos-bunker/templates"

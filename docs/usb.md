@@ -24,6 +24,8 @@ bunker-usb-attach personal 0bda:2838  # moves live holder
 
 Zone defaults in `config/zones.json` `"usb": ["vid:pid"]` auto-run attach on `bunker-zone-start`.
 
+Egress: [egress.md](egress.md). TUI defaults: `tools/bunker-broker-tui/`.
+
 ## Limits (honest)
 
 - Hardware: **one** live consumer per physical device.

@@ -22,6 +22,8 @@ sudo nixos-rebuild switch --flake .#host
 
 ## Bootstrap
 
-- Nym: `docs/nym-bootstrap.md` (single `nym-client` id `bunker`)
+- Nym: [nym-bootstrap.md](nym-bootstrap.md) (single `nym-client` id `bunker`)
 - i2p: starts with netVM (`services.i2pd`); first connect may be slow while integrating
 - Tor: always on as `tor.service` on netVM
+
+USB attach defaults: [usb.md](usb.md). Portability: [portability.md](portability.md).

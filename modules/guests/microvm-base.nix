@@ -1,4 +1,5 @@
-# Shared microVM guest base — applies to every zone VM.
+# Shared microVM guest base — every AppVM / Disposable / Service guest.
+# No SPICE clipboard; QMP socket for host-mediated USB to usbVM only.
 {
   config,
   lib,
