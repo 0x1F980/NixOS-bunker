@@ -1,107 +1,146 @@
 #!/usr/bin/env bash
-# Attach USB device to a microVM via QMP (device_add usb-host).
+# USB 1→many via usbVM broker (usbip), same pattern as netVM for network.
 #
-# Hardware truth: one physical USB device can be LIVE in only one VM at a time.
-# Policy: same device MAY be listed for many zones (defaults); attach MOVES it
-# if another zone currently holds it (unless BUNKER_USB_EXCLUSIVE=1 refuses move).
+# Flow:
+#   1) Host QMP attaches physical device ONLY to usbVM (10.0.0.2)
+#   2) usbVM binds/exports with usbip
+#   3) Target zone imports via usbip (many zones can request; one holds live)
 #
-# Usage: bunker-usb-attach <vm> <vendorId:productId>
+# Usage: bunker-usb-attach <zone> <vendorId:productId>
 set -euo pipefail
 
-VM="${1:-}"
+ZONE="${1:-}"
 DEVID="${2:-}"
 STATE_DIR="${BUNKER_USB_STATE:-/var/lib/bunker/usb-assign}"
 MON_DIR="${BUNKER_QEMU_MON:-/var/lib/microvms}"
-EXCLUSIVE="${BUNKER_USB_EXCLUSIVE:-0}"
+ZONE_PASS="${BUNKER_ZONE_PASS:-zone}"
+USB_IP="10.0.0.2"
 
 usage() {
-  echo "Usage: $0 <vm> <vendorId:productId>"
+  echo "Usage: $0 <zone> <vendorId:productId>"
+  echo "  Broker: usbVM $USB_IP  →  many app zones (usbip)"
   echo "  Example: $0 radio 0bda:2838"
-  echo "  List: lsusb"
-  echo "  Many zones can declare the same device in zones.json usb[];"
-  echo "  live attach is still one VM at a time (hardware) — we MOVE on re-attach."
 }
 
 qmp() {
-  local sock="$1"
-  local cmd="$2"
-  if command -v socat >/dev/null 2>&1; then
-    {
-      sleep 0.05
-      printf '%s\n' '{"execute":"qmp_capabilities"}'
-      sleep 0.05
-      printf '%s\n' "$cmd"
-    } | socat - UNIX-CONNECT:"$sock"
-  else
-    echo "ERROR: socat required for QMP" >&2
-    return 1
-  fi
+  local sock="$1" cmd="$2"
+  {
+    sleep 0.05
+    printf '%s\n' '{"execute":"qmp_capabilities"}'
+    sleep 0.05
+    printf '%s\n' "$cmd"
+  } | socat - UNIX-CONNECT:"$sock"
 }
 
 find_mon() {
-  local vm="$1"
-  local cand
+  local vm="$1" cand
   for cand in \
     "/run/microvm/${vm}.sock" \
     "$MON_DIR/$vm/sock" \
-    "$MON_DIR/$vm/qemu.sock" \
-    "$MON_DIR/$vm/monitor.sock"
+    "$MON_DIR/$vm/qemu.sock"
   do
-    if [[ -S "$cand" ]]; then
-      echo "$cand"
-      return 0
-    fi
+    [[ -S "$cand" ]] && { echo "$cand"; return 0; }
   done
   return 1
 }
 
-if [[ -z "$VM" || -z "$DEVID" ]]; then
+ssh_z() {
+  local ip="$1"
+  shift
+  local opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8)
+  if command -v sshpass >/dev/null 2>&1; then
+    sshpass -p "$ZONE_PASS" ssh "${opts[@]}" -o PreferredAuthentications=password \
+      -o PubkeyAuthentication=no "zone@${ip}" "$@"
+  else
+    ssh "${opts[@]}" "zone@${ip}" "$@"
+  fi
+}
+
+lookup_zone_ip() {
+  local name="$1"
+  case "$name" in
+    usb) echo "$USB_IP"; return ;;
+    net) echo 10.0.0.1; return ;;
+    vault) echo ""; return ;;
+    sdr) name=radio ;;
+  esac
+  if [[ -f /etc/bunker/zones.json ]]; then
+    python3 -c "import json;z=json.load(open('/etc/bunker/zones.json'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null && return
+  fi
+  if [[ -f "$(dirname "$0")/../config/zones.json" ]]; then
+    python3 -c "import json;z=json.load(open('$(dirname "$0")/../config/zones.json'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null && return
+  fi
+  echo ""
+}
+
+if [[ -z "$ZONE" || -z "$DEVID" ]]; then
   usage
   exit 1
 fi
-
 if [[ ! "$DEVID" =~ ^[0-9a-fA-F]+:[0-9a-fA-F]+$ ]]; then
-  echo "ERROR: device must be vendor:product hex (lsusb)" >&2
+  echo "ERROR: need vid:pid hex" >&2
+  exit 1
+fi
+if [[ "$ZONE" == "usb" || "$ZONE" == "net" || "$ZONE" == "vault" ]]; then
+  echo "ERROR: attach to an app zone (personal/work/browse/radio/…), not $ZONE" >&2
   exit 1
 fi
 
+ZIP="$(lookup_zone_ip "$ZONE")"
+[[ -n "$ZIP" ]] || {
+  echo "ERROR: unknown zone IP for $ZONE" >&2
+  exit 1
+}
+
+mkdir -p "$STATE_DIR"
 VENDOR="${DEVID%:*}"
 PRODUCT="${DEVID#*:}"
 USBID="usb_${VENDOR}_${PRODUCT}"
-mkdir -p "$STATE_DIR"
 
-# If held by another VM, move (detach then attach) unless exclusive mode
-if [[ -f "$STATE_DIR/$DEVID" ]]; then
-  cur="$(cat "$STATE_DIR/$DEVID")"
-  if [[ "$cur" == "$VM" ]]; then
-    echo "Already on $VM"
-    exit 0
-  fi
-  if [[ "$EXCLUSIVE" == "1" ]]; then
-    echo "ERROR: $DEVID held by '$cur' (BUNKER_USB_EXCLUSIVE=1). Detach first." >&2
+# --- 1) Ensure device is on usbVM (host QMP → usb only) ---
+MON="$(find_mon usb || true)"
+[[ -n "$MON" ]] || {
+  echo "ERROR: usbVM QMP missing. Start broker: bunker-zone-start usb" >&2
+  exit 1
+}
+
+# If already listed on usb via lsusb, skip QMP; else device_add
+if ! ssh_z "$USB_IP" "sudo lsusb -d $DEVID" >/dev/null 2>&1; then
+  echo "==> QMP: attach $DEVID to usbVM"
+  CMD=$(printf '{"execute":"device_add","arguments":{"driver":"usb-host","vendorid":%s,"productid":%s,"id":"%s","bus":"xhci.0"}}' \
+    "$((0x${VENDOR}))" "$((0x${PRODUCT}))" "$USBID")
+  qmp "$MON" "$CMD" >/dev/null || {
+    echo "ERROR: QMP device_add to usbVM failed" >&2
     exit 1
+  }
+  sleep 1
+fi
+
+# --- 2) Bind/export on usbVM ---
+echo "==> usbVM: bind/export $DEVID"
+BUSID="$(ssh_z "$USB_IP" "sudo bunker-usb-broker bind $DEVID" | tail -n1 | tr -d '\r')"
+if [[ -z "$BUSID" || "$BUSID" == ERROR* ]]; then
+  echo "ERROR: could not bind $DEVID on usbVM (got: ${BUSID:-empty})" >&2
+  exit 1
+fi
+echo "    busid=$BUSID"
+
+# --- 3) If another zone holds it, detach there first ---
+if [[ -f "$STATE_DIR/$DEVID" ]]; then
+  cur="$(cut -d' ' -f1 "$STATE_DIR/$DEVID")"
+  if [[ "$cur" != "$ZONE" && -n "$cur" ]]; then
+    echo "==> move: detach from $cur"
+    CIP="$(lookup_zone_ip "$cur")"
+    if [[ -n "$CIP" ]]; then
+      ssh_z "$CIP" "sudo usbip detach -p 0" 2>/dev/null || \
+        ssh_z "$CIP" "sudo usbip detach -p 1" 2>/dev/null || true
+    fi
   fi
-  echo "NOTE: moving $DEVID from $cur → $VM (one live holder; hardware limit)"
-  "$(dirname "$0")/usb-detach.sh" "$cur" "$DEVID" || true
 fi
 
-MON="$(find_mon "$VM" || true)"
-if [[ -z "$MON" ]]; then
-  echo "ERROR: no QMP socket for '$VM' (expected /run/microvm/${VM}.sock)." >&2
-  echo "Start the zone first: bunker-zone-start $VM" >&2
-  exit 1
-fi
+# --- 4) Import into target zone ---
+echo "==> $ZONE ($ZIP): usbip attach from $USB_IP"
+ssh_z "$ZIP" "sudo usbip attach -r $USB_IP -b $BUSID"
 
-VID="0x${VENDOR}"
-PID="0x${PRODUCT}"
-CMD=$(printf '{"execute":"device_add","arguments":{"driver":"usb-host","vendorid":%s,"productid":%s,"id":"%s","bus":"xhci.0"}}' \
-  "$((VID))" "$((PID))" "$USBID")
-
-if ! qmp "$MON" "$CMD"; then
-  echo "ERROR: QMP device_add failed via $MON" >&2
-  exit 1
-fi
-
-echo "$VM" >"$STATE_DIR/$DEVID"
-# Record which zones are allowed (from zones.json) — informational
-echo "Attached $DEVID → $VM (live). Other zones may list it in usb[] but only one holds it live."
+echo "$ZONE $BUSID" >"$STATE_DIR/$DEVID"
+echo "OK: $DEVID brokered usbVM → $ZONE (1 usbVM → many zones; this device live on $ZONE)"

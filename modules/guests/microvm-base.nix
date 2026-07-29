@@ -14,9 +14,8 @@
     # On-demand RAM; adjust per zone overlays
     mem = lib.mkDefault 1024;
     vcpu = lib.mkDefault 2;
-    # QMP socket for USB hotplug (scripts/usb-attach.sh)
+    # QMP: usbVM uses this for physical usb-host; app zones mostly usbip
     socket = lib.mkDefault "/run/microvm/${config.networking.hostName}.sock";
-    # virtio-rng + xhci for USB hotplug
     qemu.extraArgs = [
       "-device"
       "virtio-rng-pci"
@@ -79,6 +78,24 @@
     "kernel.kptr_restrict" = 2;
     "kernel.dmesg_restrict" = 1;
   };
+
+  # usbip client so app zones can pull devices from usbVM (10.0.0.2)
+  boot.kernelModules = lib.mkAfter [
+    "vhci_hcd"
+    "usbip_core"
+  ];
+  environment.systemPackages = lib.mkAfter [ pkgs.linuxPackages.usbip ];
+  security.sudo.extraRules = lib.mkAfter [
+    {
+      users = [ "zone" ];
+      commands = [
+        {
+          command = "${pkgs.linuxPackages.usbip}/bin/usbip";
+          options = [ "NOPASSWD" ];
+        }
+      ];
+    }
+  ];
 
   nixpkgs.config.allowUnfreePredicate =
     pkg: builtins.elem (lib.getName pkg) [ "obsidian" ];

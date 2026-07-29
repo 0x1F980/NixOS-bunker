@@ -1,69 +1,65 @@
 #!/usr/bin/env bash
-# Detach USB device from a VM (QMP device_del) + clear policy record.
-# Usage: bunker-usb-detach <vm> <vendorId:productId>
+# Detach USB from an app zone (usbip). Device stays on usbVM ready for another zone.
+# Usage: bunker-usb-detach <zone> <vendorId:productId>
 set -euo pipefail
 
-VM="${1:-}"
+ZONE="${1:-}"
 DEVID="${2:-}"
 STATE_DIR="${BUNKER_USB_STATE:-/var/lib/bunker/usb-assign}"
-MON_DIR="${BUNKER_QEMU_MON:-/var/lib/microvms}"
+ZONE_PASS="${BUNKER_ZONE_PASS:-zone}"
+USB_IP="10.0.0.2"
 
-qmp() {
-  local sock="$1"
-  local cmd="$2"
-  if command -v socat >/dev/null 2>&1; then
-    {
-      sleep 0.05
-      printf '%s\n' '{"execute":"qmp_capabilities"}'
-      sleep 0.05
-      printf '%s\n' "$cmd"
-    } | socat - UNIX-CONNECT:"$sock"
+lookup_zone_ip() {
+  local name="$1"
+  case "$name" in
+    sdr) name=radio ;;
+  esac
+  if [[ -f /etc/bunker/zones.json ]]; then
+    python3 -c "import json;z=json.load(open('/etc/bunker/zones.json'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null && return
+  fi
+  if [[ -f "$(dirname "$0")/../config/zones.json" ]]; then
+    python3 -c "import json;z=json.load(open('$(dirname "$0")/../config/zones.json'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null && return
+  fi
+  echo ""
+}
+
+ssh_z() {
+  local ip="$1"
+  shift
+  local opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8)
+  if command -v sshpass >/dev/null 2>&1; then
+    sshpass -p "$ZONE_PASS" ssh "${opts[@]}" -o PreferredAuthentications=password \
+      -o PubkeyAuthentication=no "zone@${ip}" "$@"
   else
-    echo "ERROR: socat required for QMP" >&2
-    return 1
+    ssh "${opts[@]}" "zone@${ip}" "$@"
   fi
 }
 
-if [[ -z "$VM" || -z "$DEVID" ]]; then
-  echo "Usage: $0 <vm> <vendorId:productId>"
+if [[ -z "$ZONE" || -z "$DEVID" ]]; then
+  echo "Usage: $0 <zone> <vendorId:productId>"
   exit 1
 fi
 
-VENDOR="${DEVID%:*}"
-PRODUCT="${DEVID#*:}"
-USBID="usb_${VENDOR}_${PRODUCT}"
+ZIP="$(lookup_zone_ip "$ZONE")"
+[[ -n "$ZIP" ]] || {
+  echo "ERROR: unknown zone $ZONE" >&2
+  exit 1
+}
 
 if [[ -f "$STATE_DIR/$DEVID" ]]; then
-  cur="$(cat "$STATE_DIR/$DEVID")"
-  if [[ "$cur" != "$VM" ]]; then
-    echo "ERROR: $DEVID is assigned to '$cur', not '$VM'" >&2
-    exit 1
+  cur="$(cut -d' ' -f1 "$STATE_DIR/$DEVID")"
+  if [[ "$cur" != "$ZONE" ]]; then
+    echo "WARN: state says holder is '$cur', detaching $ZONE anyway"
   fi
 fi
 
-MON=""
-for cand in \
-  "/run/microvm/${VM}.sock" \
-  "$MON_DIR/$VM/sock" \
-  "$MON_DIR/$VM/qemu.sock" \
-  "$MON_DIR/$VM/monitor.sock"
-do
-  if [[ -S "$cand" ]]; then
-    MON="$cand"
-    break
-  fi
-done
+echo "==> $ZONE: usbip detach"
+ssh_z "$ZIP" "sudo usbip detach -p 0" 2>/dev/null || \
+  ssh_z "$ZIP" "sudo usbip detach -p 1" 2>/dev/null || \
+  ssh_z "$ZIP" "sudo usbip detach -p 2" 2>/dev/null || true
 
-if [[ -z "$MON" ]]; then
-  echo "ERROR: no QMP socket for '$VM'" >&2
-  exit 1
-fi
-
-CMD=$(printf '{"execute":"device_del","arguments":{"id":"%s"}}' "$USBID")
-qmp "$MON" "$CMD" || {
-  echo "ERROR: QMP device_del failed" >&2
-  exit 1
-}
+# Keep device exported on usbVM for next zone (unbind optional)
+# ssh_z "$USB_IP" "sudo bunker-usb-broker unbind $DEVID" || true
 
 rm -f "$STATE_DIR/$DEVID"
-echo "Detached $DEVID from $VM"
+echo "OK: $DEVID released from $ZONE (still on usbVM broker for other zones)"

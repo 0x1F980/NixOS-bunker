@@ -61,11 +61,16 @@ check "clipboard has zone copy" \
 check "clipboard has auto-clear" \
   grep -q 'BUNKER_CLIP_TTL' "$ROOT/scripts/clipboard.sh"
 
-check "USB attach speaks QMP" \
+check "USB attach speaks QMP to usbVM only" \
   grep -q 'qmp_capabilities' "$ROOT/scripts/usb-attach.sh"
-
-check "USB attach fails without socket" \
-  grep -q 'ERROR: no QMP socket' "$ROOT/scripts/usb-attach.sh"
+check "USB attach uses usbip broker" \
+  grep -q 'usbip attach -r' "$ROOT/scripts/usb-attach.sh"
+check "USB attach requires usbVM QMP" \
+  grep -q 'usbVM QMP missing' "$ROOT/scripts/usb-attach.sh"
+check "usbVM runs usbipd" \
+  grep -q 'usbipd' "$ROOT/modules/guests/usb.nix"
+check "app zones have vhci client" \
+  grep -q 'vhci_hcd' "$ROOT/modules/guests/microvm-base.nix"
 
 check "microvm QMP socket configured" \
   grep -q 'socket = lib.mkDefault "/run/microvm' "$ROOT/modules/guests/microvm-base.nix"

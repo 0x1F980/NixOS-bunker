@@ -77,7 +77,7 @@ bunker-test-isolation --live
 | `bunker-zone-start <zone\|all>` | Start microVM(s) (+ USB defaults) |
 | `bunker-term <zone>` | Colored SSH shell into zone |
 | `bunker-wipe <zone>` | Wipe disposable zone data |
-| `bunker-usb-attach <vm> <vid:pid>` | One device → one VM (QMP) |
+| `bunker-usb-attach <zone> <vid:pid>` | usbVM broker → zone (usbip; 1→many) |
 | `bunker-clip send <zone>` | Host clipboard → zone |
 | `bunker-clip copy <a> <b>` | Zone → zone (mediated; not left on host clip) |
 | `bunker-clip clear` | Wipe staging + host clipboard |
@@ -87,6 +87,8 @@ bunker-test-isolation --live
 
 ## Docs
 
+- [docs/usb.md](docs/usb.md) — usbVM broker (1→many)
+- [docs/egress.md](docs/egress.md) — netVM / Nym / i2p / Tor
 - [docs/nym-bootstrap.md](docs/nym-bootstrap.md)
 - [docs/ADMIN-RECOVER.md](docs/ADMIN-RECOVER.md)
 
@@ -103,7 +105,7 @@ Stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Closures **build
 | **LAN (br-bunker)** | Shared — all app zones can talk to netVM |
 | **Clearnet egress** | Only via netVM (killswitch); not per-zone WAN NICs |
 | **Nym** | **One** mixnet identity; zone SOCKS ports are frontends to it |
-| **USB** | Many zones may *list* a device; **live** attach = **one VM at a time** (hardware). Re-attach **moves** the device. |
+| **USB** | **usbVM broker** (like netVM): host QMP → usb only; zones pull via usbip. Many zones can request; **one live holder** per stick; re-attach **moves**. |
 
 ## Threat model (honest)
 
