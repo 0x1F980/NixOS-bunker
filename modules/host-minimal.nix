@@ -72,7 +72,11 @@
       exec /etc/bunker/scripts/usb-detach.sh "$@"
     '')
     (writeShellScriptBin "bunker-clipboard-send" ''
-      exec /etc/bunker/scripts/clipboard-send.sh "$@"
+      # compat → bunker-clip send
+      exec /etc/bunker/scripts/clipboard.sh send "$@"
+    '')
+    (writeShellScriptBin "bunker-clip" ''
+      exec /etc/bunker/scripts/clipboard.sh "$@"
     '')
     (writeShellScriptBin "bunker-test-isolation" ''
       exec /etc/bunker/scripts/test-isolation.sh "$@"

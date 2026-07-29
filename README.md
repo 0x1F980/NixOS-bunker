@@ -70,7 +70,9 @@ bunker-test-isolation --live
 | `bunker-term <zone>` | Colored SSH shell into zone |
 | `bunker-wipe <zone>` | Wipe disposable zone data |
 | `bunker-usb-attach <vm> <vid:pid>` | One device → one VM (QMP) |
-| `bunker-clipboard-send <vm>` | Host → VM clipboard only |
+| `bunker-clip send <zone>` | Host clipboard → zone |
+| `bunker-clip copy <a> <b>` | Zone → zone (mediated; not left on host clip) |
+| `bunker-clip clear` | Wipe staging + host clipboard |
 | `bunker-killswitch enable` | Block app-guest→WAN; allow vm-net |
 | `bunker-first-boot` | First-boot checklist |
 | `bunker-test-isolation [--live]` | Policy (+ optional live) tests |

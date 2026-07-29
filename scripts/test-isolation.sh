@@ -52,7 +52,11 @@ check "killswitch drops other vm-*" \
   grep -q 'iifname "vm-\*" drop' "$ROOT/scripts/killswitch.sh"
 
 check "clipboard refuses guest→host" \
-  grep -q 'REFUSING any guest' "$ROOT/scripts/clipboard-send.sh"
+  grep -q 'BLOCKED' "$ROOT/scripts/clipboard.sh"
+check "clipboard has zone copy" \
+  grep -q 'cmd_copy' "$ROOT/scripts/clipboard.sh"
+check "clipboard has auto-clear" \
+  grep -q 'BUNKER_CLIP_TTL' "$ROOT/scripts/clipboard.sh"
 
 check "USB attach speaks QMP" \
   grep -q 'qmp_capabilities' "$ROOT/scripts/usb-attach.sh"
