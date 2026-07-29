@@ -104,22 +104,16 @@ bunker-test-isolation --live
 
 ## Threat model (honest)
 
-Stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Closures **build**; runtime proof needs `switch` + `--live` on hardware.
+Stronger than a flat desktop, **not** Qubes. Goal: contain compromise to a zone. Closures **build**; runtime proof needs `switch` + `--live`.
 
-**Demo vs hackable:** `personal` / `work` / `browse` / `radio` / `vault` in the repo are **example** zones. Real use = edit `config/zones.json` (`bunker-zone …`) and/or templates.
-
-**Shared vs exclusive**
+**Hackable zones:** `personal`/`work`/`browse`/`radio` are **examples**. Real use = `bunker-zone …` → `config/zones.json` + `templates/`.
 
 | Resource | Model |
 | --- | --- |
-| **LAN (br-bunker)** | Shared — all app zones can talk to netVM |
-| **Clearnet egress** | Only via netVM (killswitch); not per-zone WAN NICs |
-| **Nym** | **One** mixnet identity; zone SOCKS ports are frontends to it |
-| **USB** | **usbVM broker** (like netVM): host QMP → usb only; zones pull via usbip. Many zones can request; **one live holder** per stick; re-attach **moves**. |
-
-## Threat model (honest)
-
-Stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Goal: **contain** compromise to a zone — not TEMPEST/Qubes-level. Reproducible Nix config; on-demand microVMs keep RAM/CPU modest. Closures **build**; runtime proof needs `switch` + `--live` on hardware.
+| **LAN** | Shared br-bunker → netVM |
+| **Egress** | Only via netVM (killswitch) |
+| **Nym** | One mixnet identity; per-zone SOCKS frontends |
+| **USB** | usbVM broker → usbip; one live holder per device |
 
 ## License
 
