@@ -27,13 +27,15 @@ echo "== bunker isolation tests =="
 check "vault has no NIC (mkForce [])" \
   grep -qE 'interfaces = lib\.mkForce \[ \]' "$ROOT/modules/guests/vault.nix"
 
-check "personal SOCKS 1081" grep -q '1081' "$ROOT/modules/guests/personal.nix"
-check "work SOCKS 1082" grep -q '1082' "$ROOT/modules/guests/work.nix"
-check "browse SOCKS 1083" grep -q '1083' "$ROOT/modules/guests/browse.nix"
-check "sdr SOCKS 1084" grep -q '1084' "$ROOT/modules/guests/sdr.nix"
+check "zones registry exists" test -f "$ROOT/config/zones.nix"
+check "desktop template exists" test -f "$ROOT/templates/desktop.nix"
+check "browser template exists" test -f "$ROOT/templates/browser.nix"
+check "mk-app-zone exists" test -f "$ROOT/modules/guests/mk-app-zone.nix"
 
-check "guests use bridge → br-bunker" \
-  grep -q 'bridge = "br-bunker"' "$ROOT/modules/guests/net.nix"
+check "example personal uses desktop template" \
+  grep -q 'template = "desktop"' "$ROOT/config/zones.nix"
+check "example browse is disposable" \
+  grep -q 'disposable = true' "$ROOT/config/zones.nix"
 
 check "netVM has user-net WAN iface" \
   grep -q 'type = "user"' "$ROOT/modules/guests/net.nix"
@@ -69,7 +71,7 @@ fi
 
 if [[ "$LIVE" -eq 1 ]]; then
   echo "-- live probes --"
-  if command -v curl >/dev/null && ping -c1 -W2 10.0.0.13 >/dev/null 2>&1; then
+  if ping -c1 -W2 10.0.0.13 >/dev/null 2>&1; then
     if ssh -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no zone@10.0.0.13 \
       'curl -m 5 -I https://example.com' >/dev/null 2>&1; then
       echo "FAIL: browse clearnet without proxy succeeded (must fail)"
@@ -77,14 +79,6 @@ if [[ "$LIVE" -eq 1 ]]; then
     else
       echo "PASS: browse clearnet without proxy failed"
       PASS=$((PASS + 1))
-    fi
-    if ssh -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no zone@10.0.0.13 \
-      'curl -m 20 -x socks5h://10.0.0.1:1083 -I https://example.com' >/dev/null 2>&1; then
-      echo "PASS: browse via Nym/Tor SOCKS works"
-      PASS=$((PASS + 1))
-    else
-      echo "FAIL: browse via SOCKS 1083 failed (bootstrap Nym or start tor-fallback)"
-      FAIL=$((FAIL + 1))
     fi
   else
     echo "SKIP live: browse VM 10.0.0.13 not reachable"

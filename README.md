@@ -3,90 +3,101 @@
 
 **Repo:** https://github.com/0x1F980/NixOS-bunker
 
-## Status (Phase 2)
+## Templates + zones (Qubes-like, simple)
 
-Verified on Nix hardware (build, not yet `switch` on your disk layout):
+| Qubes idea | Here |
+| --- | --- |
+| TemplateVM | `templates/*.nix` — package sets (`desktop`, `dev`, `browser`, `radio`) |
+| AppVM | entries in **`config/zones.nix`** — name, IP, SOCKS, template, disposable? |
+| DisposableVM | `disposable = true` + `bunker-wipe <zone>` |
+
+**You edit one file to add your own zones:** [`config/zones.nix`](config/zones.nix)
+
+```nix
+# example — add a second disposable browser
+throwaway = {
+  template = "browser";
+  ip = "10.0.0.15";
+  mac = "02:b0:00:00:00:15";
+  socks = 1085;
+  mem = 1536;
+  vcpu = 2;
+  disposable = true;
+};
+```
+
+`personal` / `work` / `browse` / `radio` in that file are **examples**, not locked identity. Rename or delete them.
+
+Infrastructure (not in `zones.nix`): **net**, **usb**, **vault**.
+
+## Status (Phase 2)
 
 ```bash
 nix build path:.#nixosConfigurations.host.config.system.build.toplevel
 nix build path:.#zone-net
-# also: zone-personal / zone-browse / zone-vault (and remaining zones)
-bunker-test-isolation   # policy checks; add --live when VMs are up
+bunker-test-isolation
 ```
 
-You still must replace the **hardware stub**, set **hashed passwords**, then `nixos-rebuild switch --flake .#host`.
+Replace the **hardware stub**, set **hashed passwords**, then `nixos-rebuild switch --flake .#host`.
 
-## First boot (on NixOS hardware)
-
-This flake is the **system config**. You still need a NixOS machine (or installer) to apply it.
+## First boot
 
 ```bash
 git clone git@github.com:0x1F980/NixOS-bunker.git
 cd NixOS-bunker
 
-# 1) Real disk layout (replace the stub)
-sudo nixos-generate-config --show-hardware-config > hosts/bunker/hardware-configuration.nix
-# Prefer LUKS for / and a separate LUKS volume for vault data.
+# 1) Edit YOUR zones (optional)
+$EDITOR config/zones.nix
 
-# 2) Optional hardware overlay — uncomment ONE import in hosts/bunker/configuration.nix:
-#    ../../hardware/generic-x86_64.nix
-#    ../../hardware/aarch64-generic.nix
-#    ../../hardware/mba52.nix
+# 2) Real disk layout
+sudo nixos-generate-config --show-hardware-config > hosts/bunker/hardware-configuration.nix
 
 # 3) Passwords — replace initialPassword with hashedPassword (mkpasswd -m sha-512)
-#    users: bunker (daily, no sudo), admin (TTY / nixos-rebuild only)
 
-# 4) Build & switch (as admin / root)
+# 4) Switch
 sudo nixos-rebuild switch --flake .#host
 
-# 5) Network + zones
+# 5) Zones
 bunker-killswitch enable
 bunker-zone-start net
-# Bootstrap Nym inside net VM — see docs/nym-bootstrap.md
-bunker-zone-start personal
+# docs/nym-bootstrap.md
+bunker-zone-start personal   # or whatever you named in zones.nix
+bunker-wipe browse           # disposable reset
 
-# 6) Isolation checks
+# 6) Checks
 bunker-test-isolation
 bunker-test-isolation --live
-# Live: from browse VM, clearnet curl without proxy MUST fail;
-#       curl -x socks5h://10.0.0.1:1083 https://example.com  after Nym bootstrap
 ```
 
 ## Architecture
 
-| VM | IP | Role |
-| --- | --- | --- |
-| **net** | 10.0.0.1 | Sole egress; Nym/Tor/i2pd; DNS/NTP; SOCKS 1081–1084; WAN via user-net |
-| **usb** | 10.0.0.2 | USB broker |
-| **personal** | 10.0.0.11 | Daily apps (template) |
-| **work** | 10.0.0.12 | Dev / AI |
-| **browse** | 10.0.0.13 | Ephemeral |
-| **sdr** | 10.0.0.14 | Radio stack |
-| **vault** | — | No NIC; crypto only |
-| **host** | 10.0.0.254 on br-bunker | Minimal GNOME + microVM orchestration |
+| VM | Role |
+| --- | --- |
+| **net** `10.0.0.1` | Sole egress; Nym/Tor; SOCKS ports from `zones.nix` |
+| **usb** `10.0.0.2` | USB broker |
+| **vault** | No NIC |
+| **app zones** | From `config/zones.nix` on `br-bunker` |
+| **host** `10.0.0.254` | Minimal GNOME + orchestration |
 
 ## Operator tools
 
 | Command | Purpose |
 | --- | --- |
 | `bunker-zone-start <zone\|all>` | Start microVM(s) |
-| `bunker-wipe-browse` | Reset browse state |
+| `bunker-wipe <zone>` | Wipe disposable zone data |
 | `bunker-usb-attach <vm> <vid:pid>` | One device → one VM (QMP) |
-| `bunker-usb-detach <vm> <vid:pid>` | Release device |
 | `bunker-clipboard-send <vm>` | Host → VM clipboard only |
 | `bunker-killswitch enable` | Block app-guest→WAN; allow vm-net |
-| `bunker-voice-anon` | Pitch-shift helper |
-| `bunker-update` | flake update + rebuild ritual |
-| `bunker-test-isolation [--live]` | Policy (+ optional live) smoke tests |
+| `bunker-test-isolation [--live]` | Policy (+ optional live) tests |
 
 ## Docs
 
-- [docs/nym-bootstrap.md](docs/nym-bootstrap.md) — first-time Nym clients on netVM
-- [docs/ADMIN-RECOVER.md](docs/ADMIN-RECOVER.md) — admin lockout / rollback
+- [docs/nym-bootstrap.md](docs/nym-bootstrap.md)
+- [docs/ADMIN-RECOVER.md](docs/ADMIN-RECOVER.md)
 
 ## Threat model (honest)
 
-Compartmentalized microVM workstation — stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Host/zone closures **build** with Nix; **runtime proof** needs `nixos-rebuild switch` + `bunker-test-isolation --live` on real hardware.
+Stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Closures **build**; runtime proof needs `switch` + `--live` tests on hardware.
 
 ## License
 

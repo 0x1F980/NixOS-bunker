@@ -1,33 +1,47 @@
 #!/usr/bin/env bash
 # One-way clipboard: HOST -> VM only (never guest -> host).
-# Delivers via SSH to guest as zone@<vm-ip>.
 # Usage: bunker-clipboard-send <vm> [text|-]
 set -euo pipefail
 
 VM="${1:-}"
 TEXT="${2:-}"
 ZONE_PASS="${BUNKER_ZONE_PASS:-zone}"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-declare -A VM_IP=(
-  [personal]=10.0.0.11
-  [work]=10.0.0.12
-  [browse]=10.0.0.13
-  [sdr]=10.0.0.14
-  [net]=10.0.0.1
-  [usb]=10.0.0.2
-  [vault]=
-)
+lookup_ip() {
+  local name="$1"
+  case "$name" in
+    net) echo 10.0.0.1; return ;;
+    usb) echo 10.0.0.2; return ;;
+    vault) echo ""; return ;;
+  esac
+  if [[ -f /etc/bunker/zones.tsv ]]; then
+    awk -F'\t' -v z="$name" '$1==z {print $3; exit}' /etc/bunker/zones.tsv
+    return
+  fi
+  # fallback examples from config/zones.nix defaults
+  case "$name" in
+    personal) echo 10.0.0.11 ;;
+    work) echo 10.0.0.12 ;;
+    browse) echo 10.0.0.13 ;;
+    radio|sdr) echo 10.0.0.14 ;;
+    *) echo "" ;;
+  esac
+}
 
 if [[ -z "$VM" ]]; then
   echo "Usage: $0 <vm> [text|-]"
   echo "  Sends host clipboard INTO the guest only."
-  echo "  Guest→host clipboard is intentionally unsupported."
   exit 1
 fi
 
 if [[ "$VM" == "vault" ]]; then
   echo "vault has no NIC — use a shared virtio volume or USB for transfer." >&2
   exit 1
+fi
+
+if [[ "$VM" == "sdr" ]]; then
+  VM=radio
 fi
 
 if [[ -z "$TEXT" ]]; then
@@ -43,7 +57,7 @@ elif [[ "$TEXT" == "-" ]]; then
   TEXT="$(cat)"
 fi
 
-IP="${VM_IP[$VM]:-}"
+IP="$(lookup_ip "$VM")"
 OUT="/tmp/bunker-clip-out-${VM}.txt"
 printf '%s' "$TEXT" >"$OUT"
 

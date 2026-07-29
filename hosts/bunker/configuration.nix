@@ -19,6 +19,7 @@
     ../../modules/voice-anon.nix
     ../../modules/nym-netvm.nix
     ../../modules/microvm-network.nix
+    ../../modules/zones-registry.nix
     # Uncomment ONE hardware overlay as needed:
     # ../../hardware/generic-x86_64.nix
     # ../../hardware/aarch64-generic.nix

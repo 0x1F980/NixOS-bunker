@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
-# Start bunker microVM zones on-demand (does not embed guests into host closure).
+# Start bunker microVM zones on-demand.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ZONES=(net usb personal work browse vault sdr)
+SYSTEM_ZONES=(net usb vault)
 TARGET="${1:-}"
 
 usage() {
-  echo "Usage: $0 [all|net|usb|personal|work|browse|vault|sdr]"
+  echo "Usage: $0 [all|net|usb|vault|<app-zone>]"
+  echo "  App zones come from config/zones.nix (see /etc/bunker/zones.tsv on host)."
   echo "  Runs: nix run \"\$ROOT#zone-<name>\""
+}
+
+list_app_zones() {
+  if [[ -f /etc/bunker/zones.tsv ]]; then
+    cut -f1 /etc/bunker/zones.tsv
+  elif [[ -f "$ROOT/config/zones.nix" ]] && command -v nix >/dev/null 2>&1; then
+    nix --extra-experimental-features "nix-command flakes" eval --raw \
+      --impure --expr "let z=import $ROOT/config/zones.nix; in builtins.concatStringsSep \" \" (builtins.attrNames z)" 2>/dev/null \
+      | tr ' ' '\n'
+  else
+    # fallback examples
+    printf '%s\n' personal work browse radio
+  fi
 }
 
 ensure_bridge() {
@@ -29,7 +43,6 @@ start_one() {
   if command -v nix >/dev/null 2>&1; then
     nix run "$ROOT#zone-$z" &
     echo "started pid $!"
-    # Give tap/bridge a moment, then re-attach any leftover taps
     sleep 2
     ensure_bridge
   elif systemctl list-unit-files "microvm@$z.service" >/dev/null 2>&1; then
@@ -42,26 +55,37 @@ start_one() {
 
 if [[ -z "$TARGET" || "$TARGET" == "-h" || "$TARGET" == "--help" ]]; then
   usage
+  echo "App zones:"
+  list_app_zones | sed 's/^/  /'
   exit 1
 fi
 
 cd "$ROOT"
+mapfile -t APP_ZONES < <(list_app_zones)
 
 if [[ "$TARGET" == "all" ]]; then
   start_one net
   sleep 2
-  for z in usb personal work browse sdr vault; do
+  for z in usb vault "${APP_ZONES[@]}"; do
+    [[ -n "$z" ]] || continue
     start_one "$z"
   done
   exit 0
 fi
 
-for z in "${ZONES[@]}"; do
+for z in "${SYSTEM_ZONES[@]}" "${APP_ZONES[@]}"; do
   if [[ "$TARGET" == "$z" ]]; then
     start_one "$z"
     exit 0
   fi
 done
+
+# compat: old name sdr → radio
+if [[ "$TARGET" == "sdr" ]]; then
+  echo "NOTE: zone 'sdr' renamed to 'radio' (template). Starting radio."
+  start_one radio
+  exit 0
+fi
 
 echo "Unknown zone: $TARGET" >&2
 usage

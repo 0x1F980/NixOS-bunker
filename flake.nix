@@ -18,6 +18,9 @@
       lib = nixpkgs.lib;
       defaultSystem = "x86_64-linux";
 
+      # User-editable AppVM registry (templates + disposables)
+      appZones = import ./config/zones.nix;
+
       mkPkgs =
         system:
         import nixpkgs {
@@ -28,16 +31,6 @@
           };
         };
 
-      guestNames = [
-        "net"
-        "usb"
-        "personal"
-        "work"
-        "browse"
-        "vault"
-        "sdr"
-      ];
-
       mkGuest =
         name: system: modules:
         nixpkgs.lib.nixosSystem {
@@ -45,6 +38,7 @@
           specialArgs = {
             inherit self;
             bunkerZone = name;
+            bunkerAppZones = appZones;
           };
           modules = [
             microvm.nixosModules.microvm
@@ -59,13 +53,23 @@
           ++ modules;
         };
 
+      mkAppGuest =
+        name: zone:
+        mkGuest name defaultSystem [
+          (import ./modules/guests/mk-app-zone.nix {
+            inherit name zone;
+          })
+        ];
+
       # Host does NOT embed all guest flakes (avoids building every zone into host closure).
-      # Zones are on-demand via `nix run .#zone-<name>` / bunker-zone-start.
       mkHost =
         system:
         nixpkgs.lib.nixosSystem {
           inherit system;
-          specialArgs = { inherit self microvm; };
+          specialArgs = {
+            inherit self microvm;
+            bunkerAppZones = appZones;
+          };
           modules = [
             microvm.nixosModules.host
             ./hosts/bunker/configuration.nix
@@ -79,15 +83,18 @@
           ];
         };
 
-      guests = {
+      # Fixed infrastructure VMs
+      systemGuests = {
         net = mkGuest "net" defaultSystem [ ./modules/guests/net.nix ];
         usb = mkGuest "usb" defaultSystem [ ./modules/guests/usb.nix ];
-        personal = mkGuest "personal" defaultSystem [ ./modules/guests/personal.nix ];
-        work = mkGuest "work" defaultSystem [ ./modules/guests/work.nix ];
-        browse = mkGuest "browse" defaultSystem [ ./modules/guests/browse.nix ];
         vault = mkGuest "vault" defaultSystem [ ./modules/guests/vault.nix ];
-        sdr = mkGuest "sdr" defaultSystem [ ./modules/guests/sdr.nix ];
       };
+
+      appGuests = lib.mapAttrs mkAppGuest appZones;
+
+      guests = systemGuests // appGuests;
+
+      guestNames = lib.attrNames guests;
 
       zonePackages = lib.listToAttrs (
         map (name: {
@@ -97,6 +104,9 @@
       );
     in
     {
+      # Re-export for docs / nix eval .#appZones
+      inherit appZones;
+
       nixosConfigurations = {
         host = mkHost defaultSystem;
         host-aarch64 = mkHost "aarch64-linux";
@@ -106,9 +116,11 @@
       packages.${defaultSystem} = zonePackages
         // {
           default = (mkPkgs defaultSystem).writeText "bunker-readme" ''
-            Build host: nixos-rebuild switch --flake .#host
-            Run zone:   nix run .#zone-net
-                        bunker-zone-start personal
+            Edit zones:  config/zones.nix  (templates in templates/)
+            Build host:  nixos-rebuild switch --flake .#host
+            Run zone:    nix run .#zone-net
+                         bunker-zone-start personal
+            Wipe disp.:  bunker-wipe browse
           '';
         };
 

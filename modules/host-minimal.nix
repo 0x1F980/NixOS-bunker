@@ -89,6 +89,9 @@
     (writeShellScriptBin "bunker-wipe-browse" ''
       exec /etc/bunker/scripts/zone-wipe-browse.sh "$@"
     '')
+    (writeShellScriptBin "bunker-wipe" ''
+      exec /etc/bunker/scripts/zone-wipe.sh "$@"
+    '')
   ];
 
   services.pcscd.enable = true;

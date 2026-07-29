@@ -1,20 +1,21 @@
-# netVM — sole egress; Nym/Tor/i2pd; DNS/NTP; SOCKS per app-zone
-{ pkgs, lib, config, ... }:
+# netVM — sole egress; Nym/Tor/i2pd; DNS/NTP; SOCKS per app-zone from config/zones.nix
+{
+  pkgs,
+  lib,
+  bunkerAppZones ? import ../../config/zones.nix,
+  ...
+}:
 
 let
-  zoneSocks = {
-    personal = 1081;
-    work = 1082;
-    browse = 1083;
-    sdr = 1084;
-  };
+  zoneSocks = lib.mapAttrs (_: z: z.socks) (
+    lib.filterAttrs (_: z: z ? socks && z.socks != null) bunkerAppZones
+  );
   nymBin = "${pkgs.nym}/bin/nym-client";
 in
 {
   microvm.mem = 1024;
   microvm.vcpu = 2;
 
-  # Persistent Nym state across reboots
   microvm.volumes = [
     {
       image = "nym-state.img";
@@ -30,7 +31,6 @@ in
       mac = "02:b0:00:00:00:01";
       bridge = "br-bunker";
     }
-    # SLIRP/user-net: mixnet + DNS upstream without host NAT gymnastics
     {
       type = "user";
       id = "wan";
@@ -94,19 +94,15 @@ in
       prefixLength = 24;
     }
   ];
-  # eth1 = user-net (DHCP from SLIRP) for WAN
   networking.interfaces.eth1.useDHCP = true;
 
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
   networking.firewall.allowedTCPPorts = [
     53
-    1081
-    1082
-    1083
-    1084
     9050
-  ];
+  ]
+  ++ lib.attrValues zoneSocks;
   networking.firewall.allowedUDPPorts = [ 53 ];
   networking.firewall.extraCommands = ''
     iptables -t nat -A POSTROUTING -s 10.0.0.0/24 ! -d 10.0.0.0/24 -o eth1 -j MASQUERADE || true
@@ -137,7 +133,6 @@ in
           Group = "nym";
           StateDirectory = "nym/${zone}";
           WorkingDirectory = "/var/lib/nym/${zone}";
-          # Init once; fail the start (not silently) if binary missing
           ExecStartPre = pkgs.writeShellScript "nym-init-${zone}" ''
             set -euo pipefail
             export HOME=/var/lib/nym
@@ -154,7 +149,6 @@ in
           ExecStart = pkgs.writeShellScript "nym-run-${zone}" ''
             set -euo pipefail
             export HOME=/var/lib/nym
-            # Prefer explicit SOCKS bind; fall back to plain run (bootstrap may still need help)
             if ${nymBin} run --help 2>&1 | grep -qiE 'socks5|socks-bind|socks5-bind'; then
               exec ${nymBin} run --id ${zone} --socks5-bind 0.0.0.0:${toString port}
             else
@@ -169,24 +163,30 @@ in
     ) zoneSocks)
     // {
       bunker-tor-socks-fallback = {
-        description = "Optional Tor SOCKS fallback on 1081-1084 when nym down";
+        description = "Optional Tor SOCKS fallback for all zone SOCKS ports";
         after = [ "tor.service" ];
         wantedBy = [ ];
         serviceConfig = {
           Type = "simple";
-          ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.socat}/bin/socat TCP-LISTEN:1081,bind=10.0.0.1,fork,reuseaddr TCP:127.0.0.1:9050 & ${pkgs.socat}/bin/socat TCP-LISTEN:1082,bind=10.0.0.1,fork,reuseaddr TCP:127.0.0.1:9050 & ${pkgs.socat}/bin/socat TCP-LISTEN:1083,bind=10.0.0.1,fork,reuseaddr TCP:127.0.0.1:9050 & ${pkgs.socat}/bin/socat TCP-LISTEN:1084,bind=10.0.0.1,fork,reuseaddr TCP:127.0.0.1:9050 & wait'";
+          ExecStart = pkgs.writeShellScript "tor-socks-fallback" ''
+            set -euo pipefail
+            ${lib.concatStringsSep "\n" (
+              lib.mapAttrsToList (
+                _: port:
+                "${pkgs.socat}/bin/socat TCP-LISTEN:${toString port},bind=10.0.0.1,fork,reuseaddr TCP:127.0.0.1:9050 &"
+              ) zoneSocks
+            )}
+            wait
+          '';
           Restart = "on-failure";
         };
       };
     };
 
-  environment.etc."bunker/nym-ports".text = ''
-    personal 1081
-    work     1082
-    browse   1083
-    sdr      1084
-    tor-fallback 9050
-  '';
+  environment.etc."bunker/nym-ports".text = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (zone: port: "${zone} ${toString port}") zoneSocks
+    ++ [ "tor-fallback 9050" ]
+  );
 
   environment.variables.BUNKER_ZONE = "net";
   services.timesyncd.enable = true;
