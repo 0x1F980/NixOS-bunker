@@ -8,7 +8,7 @@ cat <<EOF
 == NixOS Bunker first-boot ==
 
 1) Edit YOUR app zones (optional):
-     \${EDITOR:-nano} $ROOT/config/zones.nix
+     nano $ROOT/config/zones.nix
 
 2) Replace hardware stub (on the target machine):
      sudo nixos-generate-config --show-hardware-config > $ROOT/hosts/bunker/hardware-configuration.nix
