@@ -45,6 +45,24 @@ start_one() {
     echo "started pid $!"
     sleep 2
     ensure_bridge
+    # Attach USB defaults from zones.json
+    if [[ -f /etc/bunker/zones.tsv ]] || [[ -f "$ROOT/config/zones.json" ]]; then
+      local usbs=""
+      if [[ -f /etc/bunker/zones.tsv ]]; then
+        usbs="$(awk -F'\t' -v n="$z" '$1==n {print $8}' /etc/bunker/zones.tsv || true)"
+      fi
+      if [[ -z "$usbs" || "$usbs" == "-" ]] && command -v python3 >/dev/null; then
+        usbs="$(python3 -c "import json;z=json.load(open('$ROOT/config/zones.json'));print(','.join(z.get('$z',{}).get('usb') or []))" 2>/dev/null || true)"
+      fi
+      if [[ -n "$usbs" && "$usbs" != "-" ]]; then
+        IFS=',' read -ra DEVS <<<"$usbs"
+        for d in "${DEVS[@]}"; do
+          [[ -z "$d" ]] && continue
+          echo "==> usb default attach $d -> $z"
+          "$ROOT/scripts/usb-attach.sh" "$z" "$d" || echo "WARN: usb attach $d failed (VM may still be booting)"
+        done
+      fi
+    fi
   elif systemctl list-unit-files "microvm@$z.service" >/dev/null 2>&1; then
     systemctl start "microvm@$z.service"
   else

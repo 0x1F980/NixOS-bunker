@@ -116,11 +116,12 @@
       packages.${defaultSystem} = zonePackages
         // {
           default = (mkPkgs defaultSystem).writeText "bunker-readme" ''
-            Edit zones:  config/zones.nix  (templates in templates/)
-            Build host:  nixos-rebuild switch --flake .#host
-            Run zone:    nix run .#zone-net
-                         bunker-zone-start personal
-            Wipe disp.:  bunker-wipe browse
+            Zones CRUD: bunker-zone list|add|set|rm|apps|usb
+            Colors:     bunker-zone colors ; bunker-term <zone>
+            Edit file:  config/zones.json  (templates in templates/)
+            Build host: nixos-rebuild switch --flake .#host
+            Run zone:   bunker-zone-start personal
+            Wipe disp.: bunker-wipe browse
           '';
         };
 

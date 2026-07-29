@@ -27,15 +27,20 @@ echo "== bunker isolation tests =="
 check "vault has no NIC (mkForce [])" \
   grep -qE 'interfaces = lib\.mkForce \[ \]' "$ROOT/modules/guests/vault.nix"
 
-check "zones registry exists" test -f "$ROOT/config/zones.nix"
+check "zones registry exists" test -f "$ROOT/config/zones.json"
+check "zones.nix loads JSON" test -f "$ROOT/config/zones.nix"
 check "desktop template exists" test -f "$ROOT/templates/desktop.nix"
 check "browser template exists" test -f "$ROOT/templates/browser.nix"
 check "mk-app-zone exists" test -f "$ROOT/modules/guests/mk-app-zone.nix"
+check "bunker-zone CRUD exists" test -f "$ROOT/scripts/bunker-zone.sh"
+check "zone-term exists" test -f "$ROOT/scripts/zone-term.sh"
 
 check "example personal uses desktop template" \
-  grep -q 'template = "desktop"' "$ROOT/config/zones.nix"
+  grep -q '"template": "desktop"' "$ROOT/config/zones.json"
 check "example browse is disposable" \
-  grep -q 'disposable = true' "$ROOT/config/zones.nix"
+  grep -q '"disposable": true' "$ROOT/config/zones.json"
+check "example colors present" \
+  grep -q '"color": "green"' "$ROOT/config/zones.json"
 
 check "netVM has user-net WAN iface" \
   grep -q 'type = "user"' "$ROOT/modules/guests/net.nix"

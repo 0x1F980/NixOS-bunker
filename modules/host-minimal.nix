@@ -95,6 +95,12 @@
     (writeShellScriptBin "bunker-first-boot" ''
       exec /etc/bunker/scripts/first-boot.sh "$@"
     '')
+    (writeShellScriptBin "bunker-zone" ''
+      exec /etc/bunker/scripts/bunker-zone.sh "$@"
+    '')
+    (writeShellScriptBin "bunker-term" ''
+      exec /etc/bunker/scripts/zone-term.sh "$@"
+    '')
   ];
 
   services.pcscd.enable = true;

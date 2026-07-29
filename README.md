@@ -3,32 +3,37 @@
 
 **Repo:** https://github.com/0x1F980/NixOS-bunker
 
-## Templates + zones (Qubes-like, simple)
+## Templates + zones (Qubes-like)
 
 | Qubes idea | Here |
 | --- | --- |
-| TemplateVM | `templates/*.nix` — package sets (`desktop`, `dev`, `browser`, `radio`) |
-| AppVM | entries in **`config/zones.nix`** — name, IP, SOCKS, template, disposable? |
-| DisposableVM | `disposable = true` + `bunker-wipe <zone>` |
+| TemplateVM | `templates/*.nix` (`desktop`, `dev`, `browser`, `radio`) |
+| AppVM / CRUD | **`config/zones.json`** via `bunker-zone` |
+| DisposableVM | `"disposable": true` + `bunker-wipe <zone>` |
+| Label colors | `"color": "red\|orange\|yellow\|green\|blue\|purple\|…"` |
+| Per-VM apps | `"apps": ["htop", "vim"]` (nixpkgs names) |
+| Net policy | `"internet": "proxy" \| "none" \| "tor-fallback"` |
+| USB defaults | `"usb": ["0bda:2838"]` auto-attach on start |
 
-**You edit one file to add your own zones:** [`config/zones.nix`](config/zones.nix)
+### Zone CRUD
 
-```nix
-# example — add a second disposable browser
-throwaway = {
-  template = "browser";
-  ip = "10.0.0.15";
-  mac = "02:b0:00:00:00:15";
-  socks = 1085;
-  mem = 1536;
-  vcpu = 2;
-  disposable = true;
-};
+```bash
+bunker-zone list
+bunker-zone colors
+bunker-zone add throwaway --template browser --color red --disposable
+bunker-zone set throwaway internet=proxy mem=1536
+bunker-zone apps throwaway add htop
+bunker-zone usb radio add 0bda:2838
+bunker-zone rm throwaway
+# then:
+sudo nixos-rebuild switch --flake .#host
+bunker-zone-start throwaway
+bunker-term throwaway          # colored terminal into the zone
 ```
 
-`personal` / `work` / `browse` / `radio` in that file are **examples**, not locked identity. Rename or delete them.
+`personal` / `work` / `browse` / `radio` are **examples** in `config/zones.json`.
 
-Infrastructure (not in `zones.nix`): **net**, **usb**, **vault**.
+Infrastructure (not CRUD): **net**, **usb**, **vault**.
 
 ## Status (Phase 2)
 
@@ -36,59 +41,38 @@ Infrastructure (not in `zones.nix`): **net**, **usb**, **vault**.
 nix build path:.#nixosConfigurations.host.config.system.build.toplevel
 nix build path:.#zone-net
 bunker-test-isolation
+bunker-zone list
 ```
-
-Replace the **hardware stub**, set **hashed passwords**, then `nixos-rebuild switch --flake .#host`.
 
 ## First boot
 
 ```bash
 git clone git@github.com:0x1F980/NixOS-bunker.git
 cd NixOS-bunker
-
-# 1) Edit YOUR zones (optional)
-$EDITOR config/zones.nix
-
-# 2) Real disk layout
+bunker-first-boot
+# edit zones: bunker-zone add|set|…   OR  nano config/zones.json
 sudo nixos-generate-config --show-hardware-config > hosts/bunker/hardware-configuration.nix
-
-# 3) Passwords — replace initialPassword with hashedPassword (mkpasswd -m sha-512)
-
-# 4) Switch
+# hashed passwords in modules/host-minimal.nix
 sudo nixos-rebuild switch --flake .#host
-
-# 5) Zones
 bunker-killswitch enable
 bunker-zone-start net
-# docs/nym-bootstrap.md
-bunker-zone-start personal   # or whatever you named in zones.nix
-bunker-wipe browse           # disposable reset
-
-# 6) Checks
-bunker-test-isolation
+bunker-zone-start personal
+bunker-term personal
 bunker-test-isolation --live
 ```
-
-## Architecture
-
-| VM | Role |
-| --- | --- |
-| **net** `10.0.0.1` | Sole egress; Nym/Tor; SOCKS ports from `zones.nix` |
-| **usb** `10.0.0.2` | USB broker |
-| **vault** | No NIC |
-| **app zones** | From `config/zones.nix` on `br-bunker` |
-| **host** `10.0.0.254` | Minimal GNOME + orchestration |
 
 ## Operator tools
 
 | Command | Purpose |
 | --- | --- |
-| `bunker-zone-start <zone\|all>` | Start microVM(s) |
+| `bunker-zone …` | CRUD zones / apps / usb / colors |
+| `bunker-zone-start <zone\|all>` | Start microVM(s) (+ USB defaults) |
+| `bunker-term <zone>` | Colored SSH shell into zone |
 | `bunker-wipe <zone>` | Wipe disposable zone data |
 | `bunker-usb-attach <vm> <vid:pid>` | One device → one VM (QMP) |
 | `bunker-clipboard-send <vm>` | Host → VM clipboard only |
 | `bunker-killswitch enable` | Block app-guest→WAN; allow vm-net |
-| `bunker-first-boot` | Print first-boot checklist |
+| `bunker-first-boot` | First-boot checklist |
 | `bunker-test-isolation [--live]` | Policy (+ optional live) tests |
 
 ## Docs
@@ -98,7 +82,7 @@ bunker-test-isolation --live
 
 ## Threat model (honest)
 
-Stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Closures **build**; runtime proof needs `switch` + `--live` tests on hardware.
+Stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Closures **build**; runtime proof needs `switch` + `--live` on hardware.
 
 ## License
 

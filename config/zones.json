@@ -1,0 +1,54 @@
+{
+  "personal": {
+    "template": "desktop",
+    "ip": "10.0.0.11",
+    "mac": "02:b0:00:00:00:11",
+    "socks": 1081,
+    "mem": 1536,
+    "vcpu": 2,
+    "disposable": false,
+    "color": "green",
+    "internet": "proxy",
+    "usb": [],
+    "apps": []
+  },
+  "work": {
+    "template": "dev",
+    "ip": "10.0.0.12",
+    "mac": "02:b0:00:00:00:12",
+    "socks": 1082,
+    "mem": 1920,
+    "vcpu": 2,
+    "disposable": false,
+    "color": "blue",
+    "internet": "proxy",
+    "usb": [],
+    "apps": []
+  },
+  "browse": {
+    "template": "browser",
+    "ip": "10.0.0.13",
+    "mac": "02:b0:00:00:00:13",
+    "socks": 1083,
+    "mem": 1536,
+    "vcpu": 2,
+    "disposable": true,
+    "color": "yellow",
+    "internet": "proxy",
+    "usb": [],
+    "apps": []
+  },
+  "radio": {
+    "template": "radio",
+    "ip": "10.0.0.14",
+    "mac": "02:b0:00:00:00:14",
+    "socks": 1084,
+    "mem": 1920,
+    "vcpu": 2,
+    "disposable": false,
+    "color": "orange",
+    "internet": "proxy",
+    "usb": ["0bda:2838"],
+    "apps": []
+  }
+}
