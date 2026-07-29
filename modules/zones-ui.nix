@@ -70,7 +70,48 @@ let
   appLaunchers = lib.mapAttrsToList mkAppLauncher bunkerAppZones;
 
   # Infrastructure brokers (not in zones.json)
+  brokerTui = pkgs.callPackage ../tools/bunker-broker-tui { };
+
+  # Opens ratatui in a terminal window (clickable from GNOME)
+  brokerLauncher = pkgs.writeShellScriptBin "bunker-broker" ''
+    set -euo pipefail
+    # Writable source of truth (etc copy is read-only)
+    if [[ -z "''${BUNKER_ZONES_JSON:-}" ]]; then
+      for p in \
+        "$HOME/nixos-bunker/config/zones.json" \
+        /etc/bunker/zones.json
+      do
+        if [[ -f "$p" ]]; then
+          export BUNKER_ZONES_JSON="$p"
+          break
+        fi
+      done
+    fi
+    BIN="${brokerTui}/bin/bunker-broker-tui"
+    if command -v kgx >/dev/null 2>&1; then
+      exec kgx -e "$BIN"
+    elif command -v gnome-terminal >/dev/null 2>&1; then
+      exec gnome-terminal -- "$BIN"
+    else
+      exec "$BIN"
+    fi
+  '';
+
   infraLaunchers = [
+    (mkLauncher {
+      name = "bunker-broker-tui";
+      desktopName = "Bunker: net + USB defaults";
+      comment = "ratatui — set 1→many net/usb defaults for all zones";
+      exec = "bunker-broker";
+      colorName = "blue";
+      keywords = [
+        "broker"
+        "net"
+        "usb"
+        "ratatui"
+        "defaults"
+      ];
+    })
     (mkLauncher {
       name = "bunker-infra-net";
       desktopName = "Bunker: net (egress)";
@@ -202,6 +243,8 @@ in
     legend
     usbGui
     pkgs.zenity
+    brokerTui
+    brokerLauncher
   ];
   environment.etc."bunker/colors.json".text = builtins.toJSON (
     lib.mapAttrs (_: v: {

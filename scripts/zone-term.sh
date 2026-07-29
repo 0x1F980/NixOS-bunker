@@ -6,7 +6,22 @@ set -euo pipefail
 ZONE="${1:-}"
 ZONE_PASS="${BUNKER_ZONE_PASS:-zone}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ZONES_JSON="${BUNKER_ZONES_JSON:-$ROOT/config/zones.json}"
+# Prefer checkout; on host /etc/bunker/scripts → look beside zones.json
+if [[ -z "${BUNKER_ZONES_JSON:-}" ]]; then
+  for p in \
+    "$ROOT/config/zones.json" \
+    "$HOME/nixos-bunker/config/zones.json" \
+    /etc/bunker/zones.json
+  do
+    if [[ -f "$p" ]]; then
+      ZONES_JSON="$p"
+      break
+    fi
+  done
+else
+  ZONES_JSON="$BUNKER_ZONES_JSON"
+fi
+ZONES_JSON="${ZONES_JSON:-$ROOT/config/zones.json}"
 COLORS_NIX="$ROOT/config/colors.nix"
 
 if [[ -z "$ZONE" ]]; then

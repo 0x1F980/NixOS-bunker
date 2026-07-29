@@ -86,6 +86,9 @@ check "generic-linux hardware fallback exists" \
 check "infra USB/net launchers in zones-ui" \
   grep -q 'bunker-infra-net' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'bunker-usb-gui' "$ROOT/modules/zones-ui.nix"
+check "broker ratatui app exists" \
+  test -f "$ROOT/tools/bunker-broker-tui/src/main.rs" && \
+  grep -q 'bunker-broker-tui' "$ROOT/modules/zones-ui.nix"
 check "bunker-term reaches net/usb" \
   grep -q '10.0.0.1' "$ROOT/scripts/zone-term.sh" && \
   grep -q '10.0.0.2' "$ROOT/scripts/zone-term.sh"
