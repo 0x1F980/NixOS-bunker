@@ -88,6 +88,7 @@ bunker-test-isolation --live
 | `bunker-usb-attach <vm> <vid:pid>` | One device → one VM (QMP) |
 | `bunker-clipboard-send <vm>` | Host → VM clipboard only |
 | `bunker-killswitch enable` | Block app-guest→WAN; allow vm-net |
+| `bunker-first-boot` | Print first-boot checklist |
 | `bunker-test-isolation [--live]` | Policy (+ optional live) tests |
 
 ## Docs

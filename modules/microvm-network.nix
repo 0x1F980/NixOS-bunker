@@ -5,9 +5,18 @@
   config,
   lib,
   pkgs,
+  bunkerAppZones ? import ../config/zones.nix,
   ...
 }:
 
+let
+  appTapNames = lib.mapAttrsToList (name: _: "vm-${name}") bunkerAppZones;
+  tapNames = [
+    "vm-net"
+    "vm-usb"
+  ]
+  ++ appTapNames;
+in
 {
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
@@ -20,7 +29,6 @@
     }
   ];
 
-  # NetworkManager must not own bunker bridge / guest taps
   networking.networkmanager.unmanaged = [
     "interface-name:br-bunker"
     "interface-name:vm-*"
@@ -43,7 +51,6 @@
     };
   };
 
-  # Re-attach any leftover tap-* if a guest was started with type=tap
   systemd.services.bunker-bridge-attach = {
     description = "Attach bunker microVM taps to br-bunker";
     after = [
@@ -61,7 +68,7 @@
       ExecStart = pkgs.writeShellScript "bunker-bridge-attach" ''
         set -euo pipefail
         ${pkgs.iproute2}/bin/ip link set br-bunker up || true
-        for tap in vm-net vm-usb vm-personal vm-work vm-browse vm-sdr; do
+        for tap in ${lib.concatStringsSep " " tapNames}; do
           if ${pkgs.iproute2}/bin/ip link show "$tap" >/dev/null 2>&1; then
             ${pkgs.iproute2}/bin/ip link set "$tap" master br-bunker
             ${pkgs.iproute2}/bin/ip link set "$tap" up
@@ -73,13 +80,10 @@
 
   environment.etc."bunker/network".text = ''
     Bridge: br-bunker 10.0.0.254/24
-    netVM:  10.0.0.1   (gateway + Nym/DNS for app VMs; WAN via user-net)
-    personal: 10.0.0.11  SOCKS 10.0.0.1:1081
-    work:     10.0.0.12  SOCKS 10.0.0.1:1082
-    browse:   10.0.0.13  SOCKS 10.0.0.1:1083
-    sdr:      10.0.0.14  SOCKS 10.0.0.1:1084
-    vault:    no NIC
-    usb:      10.0.0.2
+    netVM:  10.0.0.1   (gateway + Nym/DNS; WAN via user-net)
+    App zones: see /etc/bunker/zones.tsv (from config/zones.nix)
+    vault: no NIC
+    usb:   10.0.0.2
 
     App VMs must NOT NAT to clearnet on the host. Use bunker-killswitch enable.
     Only vm-net may forward to WAN.

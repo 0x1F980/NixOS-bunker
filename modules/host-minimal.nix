@@ -92,6 +92,9 @@
     (writeShellScriptBin "bunker-wipe" ''
       exec /etc/bunker/scripts/zone-wipe.sh "$@"
     '')
+    (writeShellScriptBin "bunker-first-boot" ''
+      exec /etc/bunker/scripts/first-boot.sh "$@"
+    '')
   ];
 
   services.pcscd.enable = true;
