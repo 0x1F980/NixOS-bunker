@@ -16,6 +16,8 @@
 
   users.mutableUsers = false;
 
+  # Use hashedPassword (not initialPassword) — GDM/login is reliable across rebuilds.
+  # Defaults: bunker/changeme-bunker  admin/changeme-admin  — change after first login.
   users.users.bunker = {
     isNormalUser = true;
     description = "Bunker daily operator (no root)";
@@ -25,7 +27,7 @@
       "audio"
       "input"
     ];
-    initialPassword = "changeme-bunker";
+    hashedPassword = "$6$hPl9L1jpKqoGQcuU$XHa1LQobm2/kOJcXLmyheR20Yif5edZmSwyQxl9GAjcWCGBCdqRyHUgldIQOm4u3ipCgNt/AWxgOJMRHd8r5U/";
   };
 
   users.users.admin = {
@@ -35,7 +37,7 @@
       "wheel"
       "networkmanager"
     ];
-    initialPassword = "changeme-admin";
+    hashedPassword = "$6$wHkXg74LhSGhNPbw$grmctRAXHo0aWWlEjteDEfeq1CzvpzFueFJOB.F2aoOudsNKuIdT37szlZ8eFbt0.t/8Zn/O/BlyOCoLrx6KI0";
   };
 
   security.sudo.wheelNeedsPassword = true;
