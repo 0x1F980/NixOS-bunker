@@ -83,12 +83,20 @@ check "arch helper maps uname to host attr" \
   test -f "$ROOT/scripts/lib-arch.sh" && grep -q 'bunker_host_flake_attr' "$ROOT/scripts/lib-arch.sh"
 check "generic-linux hardware fallback exists" \
   test -f "$ROOT/hardware/generic-linux.nix"
-check "infra USB/net launchers in zones-ui" \
-  grep -q 'bunker-infra-net' "$ROOT/modules/zones-ui.nix" && \
+check "service net/usb launchers in zones-ui" \
+  grep -q 'net · netvm' "$ROOT/modules/zones-ui.nix" && \
+  grep -q 'usb · usbvm' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'bunker-usb-gui' "$ROOT/modules/zones-ui.nix"
-check "broker ratatui app exists" \
-  test -f "$ROOT/tools/bunker-broker-tui/src/main.rs" && \
-  grep -q 'bunker-broker-tui' "$ROOT/modules/zones-ui.nix"
+check "qube folders AppVMs Disposables Templates" \
+  grep -q 'X-Qube-AppVM' "$ROOT/modules/zones-ui.nix" && \
+  grep -q 'X-Qube-Template' "$ROOT/modules/zones-ui.nix" && \
+  grep -q 'vault · appvm' "$ROOT/modules/zones-ui.nix"
+check "no Bunker: prefix on zone titles" \
+  test "$(grep -c 'Bunker:' "$ROOT/modules/zones-ui.nix" || true)" = "0"
+check "julia in desktop template" \
+  grep -q 'julia' "$ROOT/templates/desktop.nix"
+check "bunker-zone templates command" \
+  grep -q 'cmd_templates' "$ROOT/scripts/bunker-zone.sh"
 check "bunker-term reaches net/usb" \
   grep -q '10.0.0.1' "$ROOT/scripts/zone-term.sh" && \
   grep -q '10.0.0.2' "$ROOT/scripts/zone-term.sh"

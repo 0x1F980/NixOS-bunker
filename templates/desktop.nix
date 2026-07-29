@@ -36,6 +36,7 @@ in
     ++ maybe "libreoffice"
     ++ maybe "stellarium"
     ++ maybe "nitrokey-app"
+    ++ maybe "julia"
     ++ lib.optionals (pkgs ? kdePackages) (
       maybePkg (pkgs.kdePackages.kleopatra or null)
       ++ maybePkg (pkgs.kdePackages.marble or null)

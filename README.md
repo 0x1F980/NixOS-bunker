@@ -10,32 +10,19 @@ See [docs/portability.md](docs/portability.md). `bunker-first-boot` picks `.#hos
 
 ## Templates + zones (Qubes-like)
 
-| Qubes idea | Here |
+| Qubes | Here |
 | --- | --- |
-| TemplateVM | `templates/*.nix` (`desktop`, `dev`, `browser`, `radio`) |
-| AppVM / CRUD | **`config/zones.json`** via `bunker-zone` |
-| DisposableVM | `"disposable": true` + `bunker-wipe <zone>` |
-| Label colors | `"color": "red\|orange\|yellow\|green\|blue\|purple\|…"` |
-| Per-VM apps | `"apps": ["htop", "vim"]` (nixpkgs names) |
-| Net policy | `"internet": "nym" \| "i2p" \| "tor" \| "none"` |
-| USB defaults | `"usb": ["0bda:2838"]` auto-attach on start |
-
-Egress: **Nym** (one identity) / **i2p** alternative / **Tor** — [docs/egress.md](docs/egress.md).
-
-### Zone CRUD
+| TemplateVM | `templates/*.nix` — edit: `bunker-template-edit desktop` / folder **Templates** |
+| AppVM | `zones.json` `kind=appvm` — folder **AppVMs**, title `personal · appvm` |
+| DisposableVM | `kind=disposable` — folder **Disposables**, title `browse · disposable` |
+| net/usb | folder **Service** — `net · netvm`, `usb · usbvm`, `defaults · service` |
 
 ```bash
 bunker-zone list
-bunker-zone colors
-bunker-zone add throwaway --template browser --color red --disposable
-bunker-zone set throwaway internet=i2p
-bunker-zone apps throwaway add htop
-bunker-zone usb radio add 0bda:2838
-bunker-zone rm throwaway
-# then:
-sudo nixos-rebuild switch --flake .#host   # or .#host-aarch64 on ARM
-bunker-zone-start throwaway
-bunker-term throwaway          # colored terminal into the zone
+bunker-zone templates
+bunker-zone add throwaway --template browser --disposable
+bunker-zone set work template=dev internet=i2p
+bunker-zone set browse kind=disposable
 ```
 
 `personal` / `work` / `browse` / `radio` are **examples** in `config/zones.json`.

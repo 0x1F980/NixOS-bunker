@@ -1,22 +1,31 @@
 #!/usr/bin/env bash
-# Qubes-inspired zone CRUD — edits config/zones.json (source of truth).
+# Qubes-inspired zone CRUD — edits config/zones.json (AppVMs / Disposables).
+# Templates live in templates/*.nix (edit via: bunker-zone templates | bunker-template-edit).
 # Usage:
 #   bunker-zone list
 #   bunker-zone show <name>
-#   bunker-zone add <name> [--template browser] [--color red] [--disposable] [--internet proxy]
-#   bunker-zone set <name> key=value [key=value ...]
+#   bunker-zone add <name> [--template desktop] [--color red] [--disposable] [--kind appvm|disposable]
+#   bunker-zone set <name> key=value   # template|internet|color|disposable|kind|mem|…
 #   bunker-zone rm <name>
 #   bunker-zone apps <name> add|rm <pkg>
 #   bunker-zone usb  <name> add|rm <vid:pid>
+#   bunker-zone templates
 #   bunker-zone colors
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ZONES_JSON="${BUNKER_ZONES_JSON:-$ROOT/config/zones.json}"
+if [[ -z "${BUNKER_ZONES_JSON:-}" ]]; then
+  for p in "$ROOT/config/zones.json" "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
+    [[ -f "$p" ]] && { ZONES_JSON="$p"; break; }
+  done
+fi
+ZONES_JSON="${BUNKER_ZONES_JSON:-${ZONES_JSON:-$ROOT/config/zones.json}}"
 COLORS_NIX="$ROOT/config/colors.nix"
+TEMPLATES_DIR="$ROOT/templates"
+[[ -d "$TEMPLATES_DIR" ]] || TEMPLATES_DIR="$HOME/nixos-bunker/templates"
 
 usage() {
-  sed -n '2,12p' "$0" | sed 's/^# //'
+  sed -n '2,14p' "$0" | sed 's/^# //'
 }
 
 need_py() {
@@ -35,12 +44,31 @@ cmd_list() {
   py <<'PY'
 import json, os
 z = json.load(open(os.environ["ZONE_JSON"]))
-print(f"{'NAME':12} {'COLOR':8} {'TMPL':10} {'IP':14} {'SOCKS':5} {'NET':12} {'DISP':5} USB APPS")
+print(f"{'NAME':12} {'TYPE':11} {'COLOR':8} {'TMPL':10} {'IP':14} {'NET':8} USB APPS")
 for name, c in sorted(z.items()):
+    typ = c.get("kind") or ("disposable" if c.get("disposable") else "appvm")
     usb = ",".join(c.get("usb") or []) or "-"
     apps = ",".join(c.get("apps") or []) or "-"
-    print(f"{name:12} {c.get('color','-'):8} {c.get('template','-'):10} {c.get('ip','-'):14} {str(c.get('socks','-')):5} {c.get('internet','-'):12} {str(c.get('disposable',False)):5} {usb} {apps}")
+    print(f"{name:12} {typ:11} {c.get('color','-'):8} {c.get('template','-'):10} {c.get('ip','-'):14} {c.get('internet','-'):8} {usb} {apps}")
 PY
+}
+
+cmd_templates() {
+  echo "Templates (TemplateVM package sets) — edit then: nixos-rebuild switch"
+  local d="$TEMPLATES_DIR"
+  if [[ ! -d "$d" ]]; then
+    echo "No templates dir at $d" >&2
+    exit 1
+  fi
+  for f in "$d"/*.nix; do
+    [[ -f "$f" ]] || continue
+    local base
+    base="$(basename "$f" .nix)"
+    echo "  ${base} · template    ($f)"
+    echo "    edit: bunker-template-edit $base"
+  done
+  echo
+  echo "AppVMs reference them via zones.json \"template\": \"desktop|dev|browser|radio\""
 }
 
 cmd_show() {
@@ -134,6 +162,7 @@ z[n] = {
     "mem": int(os.environ["MEM"]),
     "vcpu": int(os.environ["VCPU"]),
     "disposable": os.environ["DISP"] == "true",
+    "kind": "disposable" if os.environ["DISP"] == "true" else "appvm",
     "color": os.environ["COLOR"],
     "internet": os.environ["NET"],
     "usb": [],
@@ -169,6 +198,12 @@ for pair in os.environ["ARGS"].split():
         z[n][k] = int(v)
     elif k == "disposable":
         z[n][k] = bools.get(v.lower(), v.lower() == "1")
+        z[n]["kind"] = "disposable" if z[n][k] else "appvm"
+    elif k == "kind":
+        if v not in ("appvm", "disposable"):
+            raise SystemExit("kind must be appvm|disposable")
+        z[n][k] = v
+        z[n]["disposable"] = v == "disposable"
     elif k in ("template", "ip", "mac", "color", "internet"):
         z[n][k] = v
     else:
@@ -255,6 +290,7 @@ main() {
     rm | delete) cmd_rm "${1:?name}" ;;
     apps) cmd_apps "${1:?name}" "${2:?add|rm}" "${3:?pkg}" ;;
     usb) cmd_usb "${1:?name}" "${2:?add|rm}" "${3:?vid:pid}" ;;
+    templates | template) cmd_templates ;;
     colors) cmd_colors ;;
     -h | --help | "") usage ;;
     *)

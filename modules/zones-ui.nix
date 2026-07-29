@@ -1,4 +1,5 @@
-# Host UI: colored zone launchers + infra (net / usb / vault).
+# Host UI: Qubes-like folders — AppVMs / Disposables / Templates / Service.
+# Launcher title = "<name> · <type>" (no "Bunker:" prefix).
 {
   lib,
   pkgs,
@@ -8,6 +9,15 @@
 
 let
   colors = import ../config/colors.nix;
+  templateNames = [
+    "desktop"
+    "dev"
+    "browser"
+    "radio"
+  ];
+
+  qubeType =
+    zone: if zone.disposable or false then "disposable" else (zone.kind or "appvm");
 
   mkIcon =
     name: colorName:
@@ -15,7 +25,7 @@ let
       c = colors.${colorName} or colors.gray;
       letter = lib.toUpper (builtins.substring 0 1 name);
     in
-    pkgs.writeText "bunker-zone-${name}.svg" ''
+    pkgs.writeText "qube-${name}.svg" ''
       <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
         <rect width="128" height="128" rx="16" fill="${c.hex}"/>
         <text x="64" y="78" text-anchor="middle" font-size="48"
@@ -25,66 +35,101 @@ let
 
   mkLauncher =
     {
-      name,
-      desktopName,
+      id,
+      title,
       comment,
       exec,
       colorName,
+      category,
       keywords ? [ ],
     }:
     let
-      icon = mkIcon name colorName;
+      icon = mkIcon id colorName;
     in
     pkgs.makeDesktopItem {
-      inherit name desktopName comment exec;
+      name = "qube-${id}";
+      desktopName = title;
+      inherit comment exec;
       icon = "${icon}";
       categories = [
+        category
         "System"
-        "Network"
       ];
       keywords = [
-        "bunker"
+        "qube"
         "zone"
       ]
       ++ keywords;
     };
 
-  mkAppLauncher =
+  mkZoneLauncher =
     name: zone:
     let
-      colorName = zone.color or "gray";
-      disp = if zone.disposable or false then " (disposable)" else "";
+      typ = qubeType zone;
+      cat = if typ == "disposable" then "X-Qube-Disposable" else "X-Qube-AppVM";
     in
     mkLauncher {
-      name = "bunker-zone-${name}";
-      desktopName = "Bunker: ${name}${disp}";
-      comment = "${colorName} · ${zone.template} · ${zone.ip} · net=${zone.internet or "proxy"}";
+      id = name;
+      title = "${name} · ${typ}";
+      comment = "template=${zone.template} · ${zone.ip} · net=${zone.internet or "nym"} · color=${zone.color or "gray"}";
       exec = "bunker-zone-start ${name}";
-      inherit colorName;
+      colorName = zone.color or "gray";
+      category = cat;
       keywords = [
-        colorName
-        "app"
+        typ
+        zone.template
       ];
     };
 
-  appLaunchers = lib.mapAttrsToList mkAppLauncher bunkerAppZones;
+  zoneLaunchers = lib.mapAttrsToList mkZoneLauncher bunkerAppZones;
 
-  # Infrastructure brokers (not in zones.json)
+  templateEdit = pkgs.writeShellScriptBin "bunker-template-edit" ''
+    set -euo pipefail
+    T="''${1:-}"
+    ROOT="''${BUNKER_ROOT:-}"
+    if [[ -z "$ROOT" ]]; then
+      for d in "$HOME/nixos-bunker" /etc/bunker; do
+        [[ -d "$d/templates" ]] && ROOT="$d" && break
+      done
+    fi
+    ROOT="''${ROOT:-$HOME/nixos-bunker}"
+    FILE="$ROOT/templates/''${T}.nix"
+    if [[ -z "$T" || ! -f "$FILE" ]]; then
+      echo "Usage: bunker-template-edit <desktop|dev|browser|radio>" >&2
+      echo "Templates in $ROOT/templates:" >&2
+      ls -1 "$ROOT/templates"/*.nix 2>/dev/null | xargs -n1 basename | sed 's/\.nix$//' >&2
+      exit 1
+    fi
+    EDITOR="''${EDITOR:-vim}"
+    if command -v kgx >/dev/null 2>&1; then
+      exec kgx -e "$EDITOR" "$FILE"
+    fi
+    exec "$EDITOR" "$FILE"
+  '';
+
+  templateLaunchers = map (
+    t:
+    mkLauncher {
+      id = "template-${t}";
+      title = "${t} · template";
+      comment = "Edit TemplateVM package set: templates/${t}.nix (AppVMs inherit this)";
+      exec = "bunker-template-edit ${t}";
+      colorName = "gray";
+      category = "X-Qube-Template";
+      keywords = [
+        "template"
+        t
+      ];
+    }
+  ) templateNames;
+
   brokerTui = pkgs.callPackage ../tools/bunker-broker-tui { };
 
-  # Opens ratatui in a terminal window (clickable from GNOME)
   brokerLauncher = pkgs.writeShellScriptBin "bunker-broker" ''
     set -euo pipefail
-    # Writable source of truth (etc copy is read-only)
     if [[ -z "''${BUNKER_ZONES_JSON:-}" ]]; then
-      for p in \
-        "$HOME/nixos-bunker/config/zones.json" \
-        /etc/bunker/zones.json
-      do
-        if [[ -f "$p" ]]; then
-          export BUNKER_ZONES_JSON="$p"
-          break
-        fi
+      for p in "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
+        [[ -f "$p" ]] && export BUNKER_ZONES_JSON="$p" && break
       done
     fi
     BIN="${brokerTui}/bin/bunker-broker-tui"
@@ -97,103 +142,87 @@ let
     fi
   '';
 
-  infraLaunchers = [
+  # Service / infra (netVM, usbVM, …) — not AppVMs but operator tools
+  serviceLaunchers = [
     (mkLauncher {
-      name = "bunker-broker-tui";
-      desktopName = "Bunker: net + USB defaults";
-      comment = "ratatui — set 1→many net/usb defaults for all zones";
-      exec = "bunker-broker";
-      colorName = "blue";
-      keywords = [
-        "broker"
-        "net"
-        "usb"
-        "ratatui"
-        "defaults"
-      ];
-    })
-    (mkLauncher {
-      name = "bunker-infra-net";
-      desktopName = "Bunker: net (egress)";
-      comment = "Start netVM 10.0.0.1 — Nym/i2p/Tor SOCKS for all zones";
+      id = "net";
+      title = "net · netvm";
+      comment = "Egress broker 10.0.0.1 — start netVM";
       exec = "bunker-zone-start net";
       colorName = "black";
-      keywords = [
-        "net"
-        "nym"
-        "tor"
-        "i2p"
-      ];
+      category = "X-Qube-Service";
+      keywords = [ "netvm" ];
     })
     (mkLauncher {
-      name = "bunker-infra-net-term";
-      desktopName = "Bunker: net terminal";
-      comment = "SSH into netVM (zone@10.0.0.1)";
+      id = "net-term";
+      title = "net-term · netvm";
+      comment = "SSH zone@10.0.0.1";
       exec = "bunker-term net";
       colorName = "black";
-      keywords = [
-        "net"
-        "term"
-      ];
+      category = "X-Qube-Service";
+      keywords = [ "netvm" ];
     })
     (mkLauncher {
-      name = "bunker-infra-usb";
-      desktopName = "Bunker: usb (I/O)";
-      comment = "Start usbVM 10.0.0.2 — USB broker 1→many";
+      id = "usb";
+      title = "usb · usbvm";
+      comment = "I/O broker 10.0.0.2 — start usbVM";
       exec = "bunker-zone-start usb";
       colorName = "purple";
-      keywords = [
-        "usb"
-        "io"
-      ];
+      category = "X-Qube-Service";
+      keywords = [ "usbvm" ];
     })
     (mkLauncher {
-      name = "bunker-infra-usb-term";
-      desktopName = "Bunker: usb terminal";
-      comment = "SSH into usbVM (zone@10.0.0.2)";
+      id = "usb-term";
+      title = "usb-term · usbvm";
+      comment = "SSH zone@10.0.0.2";
       exec = "bunker-term usb";
       colorName = "purple";
-      keywords = [
-        "usb"
-        "term"
-      ];
+      category = "X-Qube-Service";
+      keywords = [ "usbvm" ];
     })
     (mkLauncher {
-      name = "bunker-infra-usb-attach";
-      desktopName = "Bunker: USB attach…";
-      comment = "Attach a device from usbVM into an app zone";
+      id = "usb-attach";
+      title = "usb-attach · usbvm";
+      comment = "Attach device via usbVM into an AppVM";
       exec = "bunker-usb-gui attach";
       colorName = "purple";
-      keywords = [
-        "usb"
-        "attach"
-      ];
+      category = "X-Qube-Service";
+      keywords = [ "usbvm" ];
     })
     (mkLauncher {
-      name = "bunker-infra-usb-detach";
-      desktopName = "Bunker: USB detach…";
-      comment = "Release USB from an app zone (stays on usbVM)";
+      id = "usb-detach";
+      title = "usb-detach · usbvm";
+      comment = "Detach USB from AppVM";
       exec = "bunker-usb-gui detach";
       colorName = "purple";
-      keywords = [
-        "usb"
-        "detach"
-      ];
+      category = "X-Qube-Service";
+      keywords = [ "usbvm" ];
     })
     (mkLauncher {
-      name = "bunker-infra-vault";
-      desktopName = "Bunker: vault";
-      comment = "Start vault (air-gapped, no NIC)";
+      id = "vault";
+      title = "vault · appvm";
+      comment = "Air-gapped vault (no NIC)";
       exec = "bunker-zone-start vault";
       colorName = "gray";
+      category = "X-Qube-AppVM";
       keywords = [ "vault" ];
     })
     (mkLauncher {
-      name = "bunker-infra-killswitch";
-      desktopName = "Bunker: killswitch on";
-      comment = "Block app-VM WAN; allow only netVM egress";
+      id = "defaults";
+      title = "defaults · service";
+      comment = "ratatui — net/usb 1→many defaults";
+      exec = "bunker-broker";
+      colorName = "blue";
+      category = "X-Qube-Service";
+      keywords = [ "broker" ];
+    })
+    (mkLauncher {
+      id = "killswitch";
+      title = "killswitch · service";
+      comment = "Enable app-VM WAN killswitch";
       exec = "bunker-killswitch enable";
       colorName = "red";
+      category = "X-Qube-Service";
       keywords = [ "killswitch" ];
     })
   ];
@@ -203,52 +232,124 @@ let
     export PATH="${pkgs.zenity}/bin:${pkgs.coreutils}/bin:$PATH"
     OP="''${1:-attach}"
     ZONES="$(bunker-zone list 2>/dev/null | awk 'NR>1 {print $1}' || true)"
-    if [[ -z "$ZONES" ]]; then
-      ZONES=$'personal\nwork\nbrowse\nradio'
-    fi
-    ZONE="$(zenity --list --title="Bunker USB $OP" --text="App zone:" \
-      --column="zone" $ZONES 2>/dev/null || true)"
+    [[ -n "$ZONES" ]] || ZONES=$'personal\nwork\nbrowse\nradio'
+    ZONE="$(zenity --list --title="USB $OP" --text="AppVM:" --column="zone" $ZONES 2>/dev/null || true)"
     [[ -n "''${ZONE:-}" ]] || exit 0
-    DEVID="$(zenity --entry --title="Bunker USB $OP" \
-      --text="USB vendor:product (hex), e.g. 0bda:2838" \
-      --entry-text="0bda:2838" 2>/dev/null || true)"
+    DEVID="$(zenity --entry --title="USB $OP" --text="vid:pid" --entry-text="0bda:2838" 2>/dev/null || true)"
     [[ -n "''${DEVID:-}" ]] || exit 0
     if [[ "$OP" == "detach" ]]; then
       bunker-usb-detach "$ZONE" "$DEVID"
-      zenity --info --text="Detached $DEVID from $ZONE" || true
     else
       bunker-usb-attach "$ZONE" "$DEVID"
-      zenity --info --text="Attached $DEVID → $ZONE (via usbVM)" || true
     fi
   '';
 
-  legend = pkgs.writeTextDir "share/doc/bunker/labels.md" ''
-    # Bunker zone labels
+  # Desktop directories (folders in GNOME app grid)
+  dirAppvm = pkgs.writeTextDir "share/desktop-directories/qubes-appvm.directory" ''
+    [Desktop Entry]
+    Version=1.0
+    Type=Directory
+    Name=AppVMs
+    Comment=Persistent application qubes
+    Icon=applications-system
+  '';
+  dirDisp = pkgs.writeTextDir "share/desktop-directories/qubes-disposable.directory" ''
+    [Desktop Entry]
+    Version=1.0
+    Type=Directory
+    Name=Disposables
+    Comment=Disposable qubes (wipe after use)
+    Icon=user-trash
+  '';
+  dirTmpl = pkgs.writeTextDir "share/desktop-directories/qubes-template.directory" ''
+    [Desktop Entry]
+    Version=1.0
+    Type=Directory
+    Name=Templates
+    Comment=TemplateVM package sets (edit → rebuild AppVMs)
+    Icon=folder
+  '';
+  dirSvc = pkgs.writeTextDir "share/desktop-directories/qubes-service.directory" ''
+    [Desktop Entry]
+    Version=1.0
+    Type=Directory
+    Name=Service
+    Comment=netVM / usbVM / killswitch / defaults
+    Icon=network-workgroup
+  '';
 
-    Infra: **net** (egress) · **usb** (I/O broker) · **vault** (airgap)
-
-    ${lib.concatStringsSep "\n" (
-      lib.mapAttrsToList (
-        name: zone:
-        let
-          c = colors.${zone.color or "gray"} or colors.gray;
-        in
-        "- **${name}** `${zone.color or "gray"}` ${c.hex} — template=${zone.template} internet=${zone.internet or "proxy"}"
-      ) bunkerAppZones
-    )}
+  # Force qubes into folders (applications-merged)
+  qubesMenu = pkgs.writeTextDir "etc/xdg/menus/applications-merged/qubes-bunker.menu" ''
+    <!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+      "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd">
+    <Menu>
+      <Name>Applications</Name>
+      <Menu>
+        <Name>AppVMs</Name>
+        <Directory>qubes-appvm.directory</Directory>
+        <Include><Category>X-Qube-AppVM</Category></Include>
+      </Menu>
+      <Menu>
+        <Name>Disposables</Name>
+        <Directory>qubes-disposable.directory</Directory>
+        <Include><Category>X-Qube-Disposable</Category></Include>
+      </Menu>
+      <Menu>
+        <Name>Templates</Name>
+        <Directory>qubes-template.directory</Directory>
+        <Include><Category>X-Qube-Template</Category></Include>
+      </Menu>
+      <Menu>
+        <Name>Service</Name>
+        <Directory>qubes-service.directory</Directory>
+        <Include><Category>X-Qube-Service</Category></Include>
+      </Menu>
+    </Menu>
   '';
 in
 {
-  environment.systemPackages = appLaunchers ++ infraLaunchers ++ [
-    legend
+  environment.pathsToLink = [
+    "/share/desktop-directories"
+    "/etc/xdg/menus/applications-merged"
+  ];
+
+  environment.systemPackages = zoneLaunchers
+  ++ templateLaunchers
+  ++ serviceLaunchers
+  ++ [
     usbGui
     pkgs.zenity
     brokerTui
     brokerLauncher
+    templateEdit
+    dirAppvm
+    dirDisp
+    dirTmpl
+    dirSvc
+    qubesMenu
   ];
+
+  # Also drop menu into /etc for environments that only read there
+  environment.etc."xdg/menus/applications-merged/qubes-bunker.menu".source =
+    "${qubesMenu}/etc/xdg/menus/applications-merged/qubes-bunker.menu";
+
   environment.etc."bunker/colors.json".text = builtins.toJSON (
     lib.mapAttrs (_: v: {
       inherit (v) hex ansi bg;
     }) colors
   );
+
+  environment.etc."bunker/qube-model".text = ''
+    Qubes-like model on this host:
+      Templates  — templates/*.nix (package sets); edit then nixos-rebuild
+      AppVMs     — zones.json disposable=false (or kind=appvm)
+      Disposables— zones.json disposable=true  (or kind=disposable)
+      Service    — netVM / usbVM brokers + killswitch + defaults TUI
+
+    CRUD:
+      bunker-zone list|add|set|rm|apps|usb|templates
+      bunker-zone add myvm --template desktop          # AppVM
+      bunker-zone add throwaway --template browser --disposable
+      bunker-zone set myvm template=dev internet=i2p
+  '';
 }

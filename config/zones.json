@@ -1,6 +1,7 @@
 {
   "personal": {
     "template": "desktop",
+    "kind": "appvm",
     "ip": "10.0.0.11",
     "mac": "02:b0:00:00:00:11",
     "socks": 1081,
@@ -14,6 +15,7 @@
   },
   "work": {
     "template": "dev",
+    "kind": "appvm",
     "ip": "10.0.0.12",
     "mac": "02:b0:00:00:00:12",
     "socks": 1082,
@@ -27,6 +29,7 @@
   },
   "browse": {
     "template": "browser",
+    "kind": "disposable",
     "ip": "10.0.0.13",
     "mac": "02:b0:00:00:00:13",
     "socks": 1083,
@@ -40,6 +43,7 @@
   },
   "radio": {
     "template": "radio",
+    "kind": "appvm",
     "ip": "10.0.0.14",
     "mac": "02:b0:00:00:00:14",
     "socks": 1084,
