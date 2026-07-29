@@ -1,5 +1,5 @@
 # Host UI: Qubes-like folders — AppVMs / Disposables / Templates / Service.
-# Launcher title = "<name> · <type>" (no "Bunker:" prefix).
+# Launcher title = "<name> · <type>" (no product-name prefix).
 {
   lib,
   pkgs,
