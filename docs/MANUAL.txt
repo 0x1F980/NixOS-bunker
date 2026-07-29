@@ -18,6 +18,8 @@ ZONES
 
 COMMANDS
   bunker-zones                       # ratatui zone CRUD (preferred UX)
+  bunker-deniable                    # hide/show whole VMs (Shufflecake layers)
+  bunker-panic-ui                    # ☢ panic — wipe panic-flagged deniable keys
   bunker-zone list|add|set|rm|apps|usb|templates|colors
   bunker-broker                      # ratatui net/usb defaults
   bunker-zone-start <zone|all>
@@ -33,6 +35,8 @@ COMMANDS
 
 ZONE CRUD POLICY
   Preferred:  zones · service  /  bunker-zones  /  bunker-zone CLI
+  Hidden VMs: deniable · service  /  docs/deniable.md
+  Panic:      panic · service (default code changeme — change PANIC_HASH)
   OK:         hand-edit config/zones.json (same SoT), then nixos-rebuild
   Avoid:      hand-editing Nix modules just to add/remove/tune a zone
 

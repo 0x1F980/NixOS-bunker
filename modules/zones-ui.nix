@@ -4,6 +4,8 @@
   lib,
   pkgs,
   bunkerAppZones ? import ../config/zones.nix,
+  bunkerPublicZones ? bunkerAppZones,
+  bunkerDeniableZones ? { },
   ...
 }:
 
@@ -33,6 +35,19 @@ let
       </svg>
     '';
 
+  # Nuclear trefoil for panic · service
+  nuclearIcon = pkgs.writeText "bunker-panic-nuclear.svg" ''
+    <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+      <rect width="128" height="128" rx="16" fill="#1a0000"/>
+      <circle cx="64" cy="64" r="56" fill="#cc0000"/>
+      <circle cx="64" cy="64" r="14" fill="#1a0000"/>
+      <path d="M64 18 L78 52 L50 52 Z" fill="#edd400"/>
+      <path d="M98 90 L64 78 L90 52 Z" fill="#edd400" transform="rotate(120 64 64)"/>
+      <path d="M30 90 L64 78 L38 52 Z" fill="#edd400" transform="rotate(240 64 64)"/>
+      <circle cx="64" cy="64" r="8" fill="#edd400"/>
+    </svg>
+  '';
+
   mkLauncher =
     {
       id,
@@ -43,15 +58,16 @@ let
       category,
       keywords ? [ ],
       terminal ? false,
+      icon ? null,
     }:
     let
-      icon = mkIcon id colorName;
+      resolvedIcon = if icon != null then icon else (mkIcon id colorName);
     in
     pkgs.makeDesktopItem {
       name = "qube-${id}";
       desktopName = title;
       inherit comment exec terminal;
-      icon = "${icon}";
+      icon = "${resolvedIcon}";
       categories = [
         category
         "System"
@@ -82,7 +98,8 @@ let
       ];
     };
 
-  zoneLaunchers = lib.mapAttrsToList mkZoneLauncher bunkerAppZones;
+  # Static GNOME launchers: public zones only (deniable appear under /run/bunker/xdg when unlocked)
+  zoneLaunchers = lib.mapAttrsToList mkZoneLauncher bunkerPublicZones;
 
   templateEdit = pkgs.writeShellScriptBin "bunker-template-edit" ''
     set -euo pipefail
@@ -126,6 +143,8 @@ let
 
   brokerTui = pkgs.callPackage ../tools/bunker-broker-tui { };
   zonesTui = pkgs.callPackage ../tools/bunker-zones-tui { };
+  deniableTui = pkgs.callPackage ../tools/bunker-deniable-tui { };
+  panicTui = pkgs.callPackage ../tools/bunker-panic-tui { };
 
   brokerLauncher = pkgs.writeShellScriptBin "bunker-broker" ''
     set -euo pipefail
@@ -152,6 +171,35 @@ let
       done
     fi
     BIN="${zonesTui}/bin/bunker-zones-tui"
+    if command -v kgx >/dev/null 2>&1; then
+      exec kgx -e "$BIN"
+    elif command -v gnome-terminal >/dev/null 2>&1; then
+      exec gnome-terminal -- "$BIN"
+    else
+      exec "$BIN"
+    fi
+  '';
+
+  deniableLauncher = pkgs.writeShellScriptBin "bunker-deniable" ''
+    set -euo pipefail
+    if [[ -z "''${BUNKER_DENIABLE_JSON:-}" ]]; then
+      for p in "$HOME/nixos-bunker/config/deniable-zones.json" /etc/bunker/deniable-zones.json; do
+        [[ -f "$p" ]] && export BUNKER_DENIABLE_JSON="$p" && break
+      done
+    fi
+    BIN="${deniableTui}/bin/bunker-deniable-tui"
+    if command -v kgx >/dev/null 2>&1; then
+      exec kgx -e "$BIN"
+    elif command -v gnome-terminal >/dev/null 2>&1; then
+      exec gnome-terminal -- "$BIN"
+    else
+      exec "$BIN"
+    fi
+  '';
+
+  panicLauncher = pkgs.writeShellScriptBin "bunker-panic-ui" ''
+    set -euo pipefail
+    BIN="${panicTui}/bin/bunker-panic-tui"
     if command -v kgx >/dev/null 2>&1; then
       exec kgx -e "$BIN"
     elif command -v gnome-terminal >/dev/null 2>&1; then
@@ -246,6 +294,33 @@ let
         "crud"
         "qube"
         "zones"
+      ];
+    })
+    (mkLauncher {
+      id = "deniable";
+      title = "deniable · service";
+      comment = "ratatui — hide/show whole VMs via Shufflecake layers";
+      exec = "bunker-deniable";
+      colorName = "purple";
+      category = "X-Qube-Service";
+      keywords = [
+        "shufflecake"
+        "deniable"
+        "hidden"
+      ];
+    })
+    (mkLauncher {
+      id = "panic";
+      title = "panic · service";
+      comment = "☢ destroy panic-flagged deniable zone keys + RAM wipe";
+      exec = "bunker-panic-ui";
+      colorName = "red";
+      category = "X-Qube-Service";
+      icon = nuclearIcon;
+      keywords = [
+        "panic"
+        "nuclear"
+        "wipe"
       ];
     })
     (mkLauncher {
@@ -369,6 +444,10 @@ in
     brokerLauncher
     zonesTui
     zonesLauncher
+    deniableTui
+    deniableLauncher
+    panicTui
+    panicLauncher
     templateEdit
     dirAppvm
     dirDisp
@@ -392,12 +471,14 @@ in
       Templates  — templates/*.nix (package sets); edit then nixos-rebuild
       AppVMs     — zones.json disposable=false (or kind=appvm)
       Disposables— zones.json disposable=true  (or kind=disposable)
-      Service    — netVM / usbVM / zones CRUD TUI / defaults TUI / killswitch / help
+      Service    — net/usb / zones / deniable / panic / defaults / killswitch / help
 
     Manual:  man bunker   OR   /etc/bunker/MANUAL   OR   help · service
 
     Zone CRUD (prefer TUI/CLI — not hand-editing Nix modules):
       zones · service   OR   bunker-zones   OR   bunker-zone list|add|set|rm
+      deniable · service — whole hidden VMs (Shufflecake layers)
+      panic · service  — wipe panic-flagged deniable keys (☢)
       Hand-edit config/zones.json is OK (same SoT). Then: nixos-rebuild switch
 
     CRUD:

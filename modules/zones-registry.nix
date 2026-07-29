@@ -1,8 +1,10 @@
-# Emit zone registry onto the host for operator scripts (/etc/bunker/zones.json + .tsv).
+# Emit public zone registry onto the host (/etc/bunker/zones.json + .tsv).
+# Deniable whole-VMs live in deniable-zones.json (not listed here when locked).
 # Egress backends: see docs/egress.md (Nym/i2p/Tor run in netVM only).
 {
   lib,
-  bunkerAppZones ? import ../config/zones.nix,
+  bunkerPublicZones ? import ../config/zones.nix,
+  bunkerAppZones ? bunkerPublicZones,
   ...
 }:
 
@@ -23,6 +25,6 @@
         (lib.concatStringsSep "," (z.usb or [ ]))
         (lib.concatStringsSep "," (z.apps or [ ]))
       ]
-    ) bunkerAppZones
+    ) bunkerPublicZones
   );
 }

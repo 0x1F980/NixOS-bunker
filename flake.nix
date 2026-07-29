@@ -59,7 +59,10 @@
         else
           [ ./hardware/generic-linux.nix ];
 
-      appZones = import ./config/zones.nix;
+      publicZones = import ./config/zones.nix;
+      deniableZones = import ./config/deniable-zones.nix;
+      # Guests + net SOCKS include deniable VMs; GNOME static launchers stay public-only
+      appZones = publicZones // deniableZones;
 
       mkPkgs =
         system:
@@ -100,6 +103,8 @@
           specialArgs = {
             inherit self microvm;
             bunkerAppZones = appZones;
+            bunkerPublicZones = publicZones;
+            bunkerDeniableZones = deniableZones;
           };
           modules = [
             microvm.nixosModules.host

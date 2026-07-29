@@ -146,6 +146,21 @@ check "zones · service CRUD TUI" \
   test -f "$ROOT/tools/bunker-zones-tui/src/main.rs" && \
   grep -q 'zones · service' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'bunker-zones-tui' "$ROOT/modules/zones-ui.nix"
+check "deniable · service + Shufflecake module" \
+  test -f "$ROOT/tools/bunker-deniable-tui/src/main.rs" && \
+  test -f "$ROOT/modules/shufflecake-deniable.nix" && \
+  test -f "$ROOT/config/deniable-zones.json" && \
+  grep -q 'deniable · service' "$ROOT/modules/zones-ui.nix" && \
+  grep -q 'shufflecake-deniable' "$ROOT/hosts/bunker/configuration.nix"
+check "panic · service nuclear + script" \
+  test -f "$ROOT/tools/bunker-panic-tui/src/main.rs" && \
+  test -f "$ROOT/scripts/bunker-panic.sh" && \
+  grep -q 'panic · service' "$ROOT/modules/zones-ui.nix" && \
+  grep -q 'nuclearIcon\|bunker-panic-nuclear' "$ROOT/modules/zones-ui.nix"
+check "deniable docs" test -f "$ROOT/docs/deniable.md"
+check "bunker-sflc unlock/lock" \
+  test -f "$ROOT/scripts/bunker-sflc.sh" && \
+  grep -q 'cmd_unlock' "$ROOT/scripts/bunker-sflc.sh"
 check "hardware-config is stub (must replace)" \
   grep -q 'STUB' "$ROOT/hosts/bunker/hardware-configuration.nix"
 

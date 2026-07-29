@@ -15,13 +15,38 @@ usage() {
 list_app_zones() {
   if [[ -f /etc/bunker/zones.tsv ]]; then
     cut -f1 /etc/bunker/zones.tsv
-  elif [[ -f "$ROOT/config/zones.nix" ]] && command -v nix >/dev/null 2>&1; then
-    nix --extra-experimental-features "nix-command flakes" eval --raw \
-      --impure --expr "let z=import $ROOT/config/zones.nix; in builtins.concatStringsSep \" \" (builtins.attrNames z)" 2>/dev/null \
-      | tr ' ' '\n'
+  elif [[ -f "$ROOT/config/zones.json" ]] && command -v python3 >/dev/null; then
+    python3 -c "import json;print('\\n'.join(json.load(open('$ROOT/config/zones.json'))))" 2>/dev/null
   else
-    # fallback examples
     printf '%s\n' personal work browse radio
+  fi
+  # Unlocked deniable VMs (whole zones)
+  if [[ -f /run/bunker/visible-zones.json ]] && command -v python3 >/dev/null; then
+    python3 -c "import json;print('\\n'.join(json.load(open('/run/bunker/visible-zones.json'))))" 2>/dev/null || true
+  fi
+}
+
+deniable_blocked() {
+  local z="$1"
+  [[ -f /etc/bunker/deniable-zones.json || -f "$ROOT/config/deniable-zones.json" ]] || return 1
+  local dj="$ROOT/config/deniable-zones.json"
+  [[ -f /etc/bunker/deniable-zones.json ]] && dj=/etc/bunker/deniable-zones.json
+  python3 - "$dj" "$z" <<'PY'
+import json, sys
+z = json.load(open(sys.argv[1]))
+n = sys.argv[2]
+raise SystemExit(0 if n in z else 1)
+PY
+}
+
+require_deniable_visible() {
+  local z="$1"
+  if deniable_blocked "$z"; then
+    if [[ -f /run/bunker/visible-zones.json ]] && python3 -c "import json,sys;sys.exit(0 if sys.argv[1] in json.load(open('/run/bunker/visible-zones.json')) else 1)" "$z" 2>/dev/null; then
+      return 0
+    fi
+    echo "ERROR: deniable zone '$z' is locked/hidden — unlock via bunker-deniable / deniable · service" >&2
+    exit 1
   fi
 }
 
@@ -38,6 +63,7 @@ ensure_bridge() {
 
 start_one() {
   local z="$1"
+  require_deniable_visible "$z"
   ensure_bridge
   echo "==> starting zone '$z' via nix run .#zone-$z"
   if command -v nix >/dev/null 2>&1; then

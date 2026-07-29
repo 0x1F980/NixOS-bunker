@@ -5,6 +5,10 @@ bunker \- NixOS-bunker host operator overview (Qubes-like zones)
 .SH SYNOPSIS
 .B bunker-zones
 .br
+.B bunker-deniable
+.br
+.B bunker-panic-ui
+.br
 .B bunker-zone
 .RI [ list | add | set | rm | \&.\&.\&. ]
 .br
@@ -45,6 +49,15 @@ via
 .I zones.json
 is fine. Hand-editing Nix modules for per-zone add/remove is
 .B discouraged .
+.PP
+Entire VMs may be
+.B deniable
+(Shufflecake layers): see
+.B bunker-deniable
+and
+.IR docs/deniable.md .
+.B bunker-panic-ui
+destroys panic-flagged deniable keys only (not public decoys / host LUKS).
 .SH HOST VS ZONES
 .TP
 .B Host (this machine)
@@ -61,13 +74,27 @@ Defined in
 Templates live in
 .IR templates/*.nix .
 .TP
+.B Deniable VM
+.IR config/deniable-zones.json
+— whole microVMs on Shufflecake layers; shown only when unlocked.
+.TP
 .B Service
-net · netvm, usb · usbvm, zones · service, defaults · service, killswitch, help.
+net · netvm, usb · usbvm, zones · service, deniable · service, panic · service,
+defaults · service, killswitch, help.
 .SH COMMANDS
 .TP
 .B bunker-zones
 Ratatui CRUD for AppVMs / Disposables (preferred UX). Launcher:
 .BR "zones · service" .
+.TP
+.B bunker-deniable
+Hide/show whole VMs via Shufflecake layers. Launcher:
+.BR "deniable · service" .
+.TP
+.B bunker-panic-ui
+Panic button (nuclear icon): wipe panic-flagged deniable keys + RAM wipe.
+Launcher:
+.BR "panic · service" .
 .TP
 .B bunker-zone
 CLI CRUD zones, apps, USB defaults, colors, templates.
@@ -139,6 +166,7 @@ Short Qubes-like model reminder.
 .SH SEE ALSO
 .IR docs/egress.md ,
 .IR docs/usb.md ,
+.IR docs/deniable.md ,
 .IR docs/portability.md ,
 .IR docs/nym-bootstrap.md ,
 .IR docs/ADMIN-RECOVER.md

@@ -1,0 +1,12 @@
+[package]
+name = "bunker-deniable-tui"
+version = "0.1.0"
+edition = "2021"
+description = "Ratatui CRUD for Shufflecake deniable whole-zone VMs"
+license = "MIT"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

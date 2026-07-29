@@ -18,6 +18,7 @@
     ../../modules/microvm-network.nix
     ../../modules/zones-registry.nix
     ../../modules/zones-ui.nix
+    ../../modules/shufflecake-deniable.nix
     # Hardware overlays via flake mkHost (x86_64 / aarch64 / …)
   ];
 
