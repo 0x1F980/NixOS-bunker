@@ -116,48 +116,63 @@ in
   };
   users.groups.nym = { };
 
+  # Nym allows only ONE mixnet identity/client at a time.
+  # All zone SOCKS ports (1081…) are local frontends → that single client.
+  # Contaminations note: app zones share the same Nym identity on the wire.
+  systemd.services.nym-client = {
+    description = "Single Nym client (shared by all zone SOCKS ports)";
+    after = [
+      "network-online.target"
+      "sys-subsystem-net-devices-eth0.device"
+    ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "simple";
+      User = "nym";
+      Group = "nym";
+      StateDirectory = "nym/bunker";
+      WorkingDirectory = "/var/lib/nym/bunker";
+      ExecStartPre = pkgs.writeShellScript "nym-init-bunker" ''
+        set -euo pipefail
+        export HOME=/var/lib/nym
+        mkdir -p /var/lib/nym/bunker
+        cd /var/lib/nym/bunker
+        if [ ! -f config.toml ] && [ ! -f config.yaml ] && [ ! -d config ] && [ ! -d .nym ]; then
+          ${nymBin} init --id bunker || ${nymBin} init --id bunker --output /var/lib/nym/bunker || {
+            echo "init failed — see docs/nym-bootstrap.md" >&2
+            exit 1
+          }
+        fi
+      '';
+      ExecStart = pkgs.writeShellScript "nym-run-bunker" ''
+        set -euo pipefail
+        export HOME=/var/lib/nym
+        # Internal SOCKS for socat frontends
+        if ${nymBin} run --help 2>&1 | grep -qiE 'socks5|socks-bind|socks5-bind'; then
+          exec ${nymBin} run --id bunker --socks5-bind 127.0.0.1:1070
+        else
+          exec ${nymBin} run --id bunker
+        fi
+      '';
+      Restart = "on-failure";
+      RestartSec = "15s";
+    };
+  };
+
   systemd.services =
     (lib.mapAttrs' (
       zone: port:
       lib.nameValuePair "nym-socks-${zone}" {
-        description = "Nym SOCKS for bunker zone ${zone} on :${toString port}";
-        after = [
-          "network-online.target"
-          "sys-subsystem-net-devices-eth0.device"
-        ];
-        wants = [ "network-online.target" ];
+        description = "SOCKS frontend :${toString port} → single Nym client (zone ${zone})";
+        after = [ "nym-client.service" ];
+        requires = [ "nym-client.service" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
           Type = "simple";
-          User = "nym";
-          Group = "nym";
-          StateDirectory = "nym/${zone}";
-          WorkingDirectory = "/var/lib/nym/${zone}";
-          ExecStartPre = pkgs.writeShellScript "nym-init-${zone}" ''
-            set -euo pipefail
-            export HOME=/var/lib/nym
-            mkdir -p /var/lib/nym/${zone}
-            cd /var/lib/nym/${zone}
-            if [ ! -f config.toml ] && [ ! -f config.yaml ] && [ ! -d config ] && [ ! -d .nym ]; then
-              echo "nym-client not initialized for ${zone}; run docs/nym-bootstrap.md"
-              ${nymBin} init --id ${zone} || ${nymBin} init --id ${zone} --output /var/lib/nym/${zone} || {
-                echo "init failed — see docs/nym-bootstrap.md" >&2
-                exit 1
-              }
-            fi
-          '';
-          ExecStart = pkgs.writeShellScript "nym-run-${zone}" ''
-            set -euo pipefail
-            export HOME=/var/lib/nym
-            if ${nymBin} run --help 2>&1 | grep -qiE 'socks5|socks-bind|socks5-bind'; then
-              exec ${nymBin} run --id ${zone} --socks5-bind 0.0.0.0:${toString port}
-            else
-              echo "WARN: nym-client has no socks bind flag; starting without LAN SOCKS" >&2
-              exec ${nymBin} run --id ${zone}
-            fi
-          '';
+          ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:${toString port},bind=10.0.0.1,fork,reuseaddr TCP:127.0.0.1:1070";
           Restart = "on-failure";
-          RestartSec = "15s";
+          RestartSec = "5s";
         };
       }
     ) zoneSocks)
@@ -184,7 +199,11 @@ in
     };
 
   environment.etc."bunker/nym-ports".text = lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (zone: port: "${zone} ${toString port}") zoneSocks
+    [
+      "# ONE nym-client identity (bunker); zone ports are frontends only"
+      "nym-client 127.0.0.1:1070"
+    ]
+    ++ lib.mapAttrsToList (zone: port: "${zone} ${toString port} -> nym-client") zoneSocks
     ++ [ "tor-fallback 9050" ]
   );
 

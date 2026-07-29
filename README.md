@@ -86,6 +86,21 @@ bunker-test-isolation --live
 
 Stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Closures **build**; runtime proof needs `switch` + `--live` on hardware.
 
+**Demo vs hackable:** `personal` / `work` / `browse` / `radio` / `vault` in the repo are **example** zones. Real use = edit `config/zones.json` (`bunker-zone …`) and/or templates.
+
+**Shared vs exclusive**
+
+| Resource | Model |
+| --- | --- |
+| **LAN (br-bunker)** | Shared — all app zones can talk to netVM |
+| **Clearnet egress** | Only via netVM (killswitch); not per-zone WAN NICs |
+| **Nym** | **One** mixnet identity; zone SOCKS ports are frontends to it |
+| **USB** | Many zones may *list* a device; **live** attach = **one VM at a time** (hardware). Re-attach **moves** the device. |
+
+## Threat model (honest)
+
+Stronger than a flat desktop, **not** Qubes GUI/dom0 isolation. Goal: **contain** compromise to a zone — not TEMPEST/Qubes-level. Reproducible Nix config; on-demand microVMs keep RAM/CPU modest. Closures **build**; runtime proof needs `switch` + `--live` on hardware.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

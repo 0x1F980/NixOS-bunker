@@ -1,32 +1,24 @@
 # Nym bootstrap on the net microVM
 #
-# SOCKS ports come from config/zones.nix (bound on 10.0.0.1).
-# Default examples: personal 1081, work 1082, browse 1083, radio 1084.
-# See /etc/bunker/nym-ports inside the net VM after build.
+# IMPORTANT: Nym allows only ONE mixnet identity at a time.
+# This bunker runs a single `nym-client` (id=bunker). Zone ports 1081+ are
+# just local SOCKS frontends to that one client — zones SHARE the Nym identity.
 #
-# Tor fallback: 127.0.0.1:9050 (optional bunker-tor-socks-fallback.service)
+# Tor fallback: systemctl start bunker-tor-socks-fallback
 
 ## First boot inside net VM
 
 ```bash
 sudo -u nym -H bash
 export HOME=/var/lib/nym
-cd /var/lib/nym
+mkdir -p /var/lib/nym/bunker
+cd /var/lib/nym/bunker
+nym-client init --id bunker || true
 
-# Init one client id per app zone name from config/zones.nix
-for z in personal work browse radio; do
-  mkdir -p "$z"
-  cd "$z"
-  nym-client init --id "$z" || true
-  cd ..
-done
-
+sudo systemctl restart nym-client
 sudo systemctl restart 'nym-socks-*'
-sudo systemctl status 'nym-socks-*'
+sudo systemctl status nym-client 'nym-socks-*'
 ```
-
-If `nym-client` CLI flags differ, run `nym-client --help` and adjust
-`modules/guests/net.nix` ExecStart.
 
 ## Verify from an app VM
 
