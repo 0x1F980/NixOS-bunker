@@ -5,13 +5,8 @@
 
 ## CPU portability
 
-| Machine | Host flake | Zones |
-| --- | --- | --- |
-| AMD / Intel x86_64 | `.#host` | `nix run .#zone-*` (auto) |
-| ARM aarch64 | `.#host-aarch64` | same |
-| RISC-V riscv64 | `.#host-riscv64` | same |
-
-Same repo. Host and guests must match the machine’s ISA (KVM). Details: [docs/portability.md](docs/portability.md).
+Ceiling = **all Linux ISAs in nixpkgs** (AMD/Intel, ARM 32/64, RISC-V, POWER, MIPS, LoongArch, s390x, …).  
+See [docs/portability.md](docs/portability.md). `bunker-first-boot` picks `.#host` / `.#host-<cpu>` from `uname`.
 
 ## Templates + zones (Qubes-like)
 

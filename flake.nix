@@ -17,24 +17,36 @@
     let
       lib = nixpkgs.lib;
 
-      # Native ISA + KVM on that machine. AMD/Intel = x86_64, ARM = aarch64, RISC-V = riscv64.
-      supportedSystems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "riscv64-linux"
-      ];
+      # Every Linux double nixpkgs exposes in flakes — that is the ceiling.
+      # (Not "every chip ever made": only what NixOS/nixpkgs can target.)
+      supportedSystems =
+        let
+          exposed = lib.filter (lib.hasSuffix "-linux") (lib.systems.flakeExposed or [ ]);
+          # Extra Linux ISAs sometimes missing from flakeExposed but present in nixpkgs
+          extra = [
+            "x86_64-linux"
+            "i686-linux"
+            "aarch64-linux"
+            "armv7l-linux"
+            "armv6l-linux"
+            "riscv64-linux"
+            "riscv32-linux"
+            "powerpc64le-linux"
+            "powerpc64-linux"
+            "powerpc-linux"
+            "mipsel-linux"
+            "mips64el-linux"
+            "loongarch64-linux"
+            "s390x-linux"
+          ];
+        in
+        lib.unique (exposed ++ extra);
 
-      # Flake attr for nixos-rebuild: .#host / .#host-aarch64 / .#host-riscv64
+      cpuOf = system: lib.removeSuffix "-linux" system;
+
+      # .#host for x86_64; .#host-aarch64 / .#host-riscv64 / .#host-loongarch64 / …
       hostAttrName =
-        system:
-        if system == "x86_64-linux" then
-          "host"
-        else if system == "aarch64-linux" then
-          "host-aarch64"
-        else if system == "riscv64-linux" then
-          "host-riscv64"
-        else
-          "host-${system}";
+        system: if system == "x86_64-linux" then "host" else "host-${cpuOf system}";
 
       hardwareOverlay =
         system:
@@ -42,10 +54,10 @@
           [ ./hardware/generic-x86_64.nix ]
         else if system == "aarch64-linux" then
           [ ./hardware/aarch64-generic.nix ]
-        else if system == "riscv64-linux" then
+        else if system == "riscv64-linux" || system == "riscv32-linux" then
           [ ./hardware/riscv64-generic.nix ]
         else
-          [ ];
+          [ ./hardware/generic-linux.nix ];
 
       appZones = import ./config/zones.nix;
 
@@ -131,22 +143,19 @@
 
       guestsX86 = mkGuests "x86_64-linux";
 
-      # Non-x86 guest configs: net-aarch64, personal-riscv64, …
       guestsPrefixed =
         system:
-        let
-          suffix =
-            if system == "aarch64-linux" then
-              "aarch64"
-            else if system == "riscv64-linux" then
-              "riscv64"
-            else
-              system;
-        in
         lib.mapAttrs' (name: value: {
-          name = "${name}-${suffix}";
+          name = "${name}-${cpuOf system}";
           inherit value;
         }) (mkGuests system);
+
+      nonX86Systems = lib.filter (s: s != "x86_64-linux") supportedSystems;
+
+      allPrefixedGuests = lib.foldl' (
+        acc: system:
+        acc // guestsPrefixed system
+      ) { } nonX86Systems;
 
       hostConfigs = lib.listToAttrs (
         map (system: {
@@ -158,16 +167,18 @@
       readmeFor =
         system:
         (mkPkgs system).writeText "bunker-readme" ''
-          Portable CPUs: x86_64 (AMD/Intel), aarch64 (ARM), riscv64 — native ISA + KVM each.
+          All nixpkgs Linux ISAs (see docs/portability.md).
+          This machine: ${system}
           Host:  nixos-rebuild switch --flake .#${hostAttrName system}
-          Zones: nix run .#zone-<name>   # this machine's arch
-          Docs:  docs/portability.md
+          Zones: nix run .#zone-<name>
         '';
     in
     {
       inherit appZones;
+      # Re-export for docs / scripts
+      bunkerSupportedSystems = supportedSystems;
 
-      nixosConfigurations = hostConfigs // guestsX86 // guestsPrefixed "aarch64-linux" // guestsPrefixed "riscv64-linux";
+      nixosConfigurations = hostConfigs // guestsX86 // allPrefixedGuests;
 
       packages = lib.genAttrs supportedSystems (
         system:

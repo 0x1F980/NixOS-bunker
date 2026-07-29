@@ -75,16 +75,16 @@ check "app zones have vhci client" \
 check "microvm QMP socket configured" \
   grep -q 'socket = lib.mkDefault "/run/microvm' "$ROOT/modules/guests/microvm-base.nix"
 
-check "flake wires aarch64 zone packages" \
-  grep -q 'aarch64-linux' "$ROOT/flake.nix"
-check "flake wires x86_64 and aarch64 supportedSystems" \
-  grep -q 'supportedSystems' "$ROOT/flake.nix"
+check "flake uses nixpkgs flakeExposed Linux ISAs" \
+  grep -q 'flakeExposed' "$ROOT/flake.nix"
+check "flake includes loongarch64 and s390x" \
+  grep -q 'loongarch64-linux' "$ROOT/flake.nix" && grep -q 's390x-linux' "$ROOT/flake.nix"
+check "arch helper maps uname to host attr" \
+  test -f "$ROOT/scripts/lib-arch.sh" && grep -q 'bunker_host_flake_attr' "$ROOT/scripts/lib-arch.sh"
+check "generic-linux hardware fallback exists" \
+  test -f "$ROOT/hardware/generic-linux.nix"
 check "portability docs exist" \
   test -f "$ROOT/docs/portability.md"
-check "flake wires riscv64" \
-  grep -q 'riscv64-linux' "$ROOT/flake.nix"
-check "first-boot picks host-riscv64" \
-  grep -q 'host-riscv64' "$ROOT/scripts/first-boot.sh"
 check "hardware-config is stub (must replace)" \
   grep -q 'STUB' "$ROOT/hosts/bunker/hardware-configuration.nix"
 

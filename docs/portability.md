@@ -1,48 +1,42 @@
 # CPU / arch portability
-#
-# Same bunker repo on **AMD/Intel (x86_64)**, **ARM (aarch64)**, **RISC-V (riscv64)**.
-# Host and guests must share the **same ISA** (KVM). No cross-ISA live zones.
 
-## Matrix
+## Ceiling (honest)
 
-| Chip | `uname -m` | Host flake | Zone packages |
-| --- | --- | --- | --- |
-| AMD / Intel | `x86_64` | `.#host` | `packages.x86_64-linux.zone-*` |
-| ARM64 | `aarch64` / `arm64` | `.#host-aarch64` | `packages.aarch64-linux.zone-*` |
-| RISC-V | `riscv64` | `.#host-riscv64` | `packages.riscv64-linux.zone-*` |
+**Full support = every Linux ISA nixpkgs can target** — not every chip ever fabricated
+(no imaginary ISAs, no Windows/Android SoC blobs, no “runs on a toaster”).
 
-`nix run .#zone-personal` always picks **this machine’s** arch.
+Wired in the flake (`bunkerSupportedSystems` / `packages.<system>.zone-*`):
 
-## First boot
-
-```bash
-bunker-first-boot   # prints the right .#host*
-sudo nixos-generate-config --show-hardware-config \
-  > hosts/bunker/hardware-configuration.nix
-sudo nixos-rebuild switch --flake .#host          # or host-aarch64 / host-riscv64
-bunker-zone-start net && bunker-zone-start personal
-```
-
-## Requirements (every board)
-
-1. NixOS + this flake  
-2. **KVM** (or QEMU hypervisor microvm can use)  
-3. Real hardware-config (disks/firmware) for *that* board  
-4. Patience: RISC-V/ARM may compile more from source; some apps missing in nixpkgs  
-
-## Honest limits
-
-| Claim | Truth |
+| ISA | Typical chips |
 | --- | --- |
-| “Runs on AMD” | Yes — x86_64 path (your current builds) |
-| “Runs on ARM” | Wired — native build on the ARM box |
-| “Runs on RISC-V” | Wired in flake — **fewer packages**; expect template/app gaps until nixpkgs catches up |
-| “One USB stick image for all CPUs” | No — each ISA builds its own closures |
-| “Proven live on your metal” | Only after `switch` + zone start on that machine |
+| `x86_64-linux` | AMD, Intel 64-bit |
+| `i686-linux` | 32-bit x86 |
+| `aarch64-linux` | ARM64 (Apple Silicon/Linux, RPi4/5, Ampere, …) |
+| `armv7l-linux` / `armv6l-linux` | 32-bit ARM |
+| `riscv64-linux` / `riscv32-linux` | RISC-V |
+| `powerpc64le-linux` / `powerpc64-linux` / `powerpc-linux` | POWER / PPC |
+| `mipsel-linux` / `mips64el-linux` | MIPS |
+| `loongarch64-linux` | LoongArch |
+| `s390x-linux` | IBM Z |
+| \+ any other `*-linux` in `lib.systems.flakeExposed` | as nixpkgs adds them |
 
-## Check
+Same **module config** everywhere. Binaries are native per ISA. Host attr:
 
-```bash
-nix flake show
-# expect packages.{x86_64,aarch64,riscv64}-linux.zone-*
+```text
+x86_64  →  .#host
+other   →  .#host-<cpu>   e.g. host-aarch64, host-riscv64, host-loongarch64
 ```
+
+`bunker-first-boot` / `bunker-update` map `uname -m` automatically.
+
+## Still required on every board
+
+1. Linux + KVM (or usable QEMU for microvm)  
+2. `nixos-generate-config` → real disks/firmware  
+3. Some apps missing on exotic ISAs (templates soft-skip)
+
+## Not in scope
+
+- macOS/Windows as host (this is NixOS)  
+- Cross-ISA KVM (aarch64 zones on AMD without TCG — not supported)  
+- Guaranteeing every GUI app builds on MIPS/RISC-V day one

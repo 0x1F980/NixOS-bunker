@@ -1,24 +1,18 @@
 #!/usr/bin/env bash
-# Print first-boot checklist; auto-detects x86_64 vs aarch64 host flake attr.
+# Print first-boot checklist; picks host flake attr from CPU (all nixpkgs Linux ISAs).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-arch.sh
+source "$ROOT/scripts/lib-arch.sh"
 
-host_flake_attr() {
-  case "$(uname -m)" in
-    aarch64 | arm64) echo "host-aarch64" ;;
-    riscv64) echo "host-riscv64" ;;
-    *) echo "host" ;;
-  esac
-}
-
-HOST_ATTR="$(host_flake_attr)"
+HOST_ATTR="$(bunker_host_flake_attr)"
 ARCH="$(uname -m)"
 
 cat <<EOF
 == NixOS Bunker first-boot ==
 CPU arch: $ARCH  →  flake attr: .#$HOST_ATTR
-(Also see docs/portability.md)
+(Ceiling = every Linux ISA in nixpkgs — docs/portability.md)
 
 1) Edit YOUR app zones (optional):
      nano $ROOT/config/zones.json
@@ -29,29 +23,25 @@ CPU arch: $ARCH  →  flake attr: .#$HOST_ATTR
 
 3) Set hashed passwords in modules/host-minimal.nix
      mkpasswd -m sha-512
-     # replace initialPassword with hashedPassword = "...";
 
-4) Build & switch (native ISA — same machine you boot):
+4) Build & switch (native ISA):
      sudo nixos-rebuild switch --flake $ROOT#$HOST_ATTR
 
 5) Start infrastructure + one app zone:
      bunker-killswitch enable
      bunker-zone-start net
-     # see docs/nym-bootstrap.md
      bunker-zone-start personal
 
 6) Checks:
      bunker-test-isolation
      bunker-test-isolation --live
 
-Zones auto-pick arch:  nix run .#zone-<name>
-Templates:  $ROOT/templates/
-Zones file: $ROOT/config/zones.json
+Zones: nix run .#zone-<name>   # auto = this CPU
 EOF
 
 if [[ "${1:-}" == "--generate-hardware" ]]; then
   if [[ "$(id -u)" -ne 0 ]]; then
-    echo "ERROR: --generate-hardware needs root (sudo $0 --generate-hardware)" >&2
+    echo "ERROR: --generate-hardware needs root" >&2
     exit 1
   fi
   nixos-generate-config --show-hardware-config >"$ROOT/hosts/bunker/hardware-configuration.nix"
