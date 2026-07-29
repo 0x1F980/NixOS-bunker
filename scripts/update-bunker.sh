@@ -12,11 +12,16 @@ echo "==> rebuild host"
 sudo nixos-rebuild switch --flake .#host
 
 echo "==> rebuild/restart guests as needed"
-for z in net usb personal work browse vault sdr; do
-  echo "  - consider: systemctl restart microvm@$z.service"
-done
+echo "  system: net usb vault"
+if [[ -f /etc/bunker/zones.tsv ]]; then
+  cut -f1 /etc/bunker/zones.tsv | while read -r z; do
+    echo "  app: consider systemctl restart microvm@$z.service  (or: bunker-zone-start $z)"
+  done
+else
+  echo "  app zones: see config/zones.nix / bunker-zone-start"
+fi
 
-echo "==> wipe browse if throwaway session ended"
-echo "  bunker-wipe-browse"
+echo "==> wipe disposables if needed"
+echo "  bunker-wipe browse   # or any disposable from zones.nix"
 
 echo "Done. Review generations: nixos-rebuild list-generations"
