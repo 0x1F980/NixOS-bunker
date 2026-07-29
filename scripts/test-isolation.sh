@@ -42,8 +42,9 @@ check "example browse is disposable" \
 check "example colors present" \
   grep -q '"color": "green"' "$ROOT/config/zones.json"
 
-check "netVM has user-net WAN iface" \
-  grep -q 'type = "user"' "$ROOT/modules/guests/net.nix"
+check "egress docs exist" test -f "$ROOT/docs/egress.md"
+check "i2p alternative in netVM" \
+  grep -q 'socksProxy.port = 4447' "$ROOT/modules/guests/net.nix"
 
 check "killswitch allows vm-net egress" \
   grep -q 'iifname "vm-net" accept' "$ROOT/scripts/killswitch.sh"

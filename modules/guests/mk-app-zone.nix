@@ -20,10 +20,20 @@ let
   mac = zone.mac;
   colorName = zone.color or "gray";
   color = colors.${colorName} or colors.gray;
-  internet = zone.internet or "proxy";
+  internet = zone.internet or "nym";
   extraAppNames = zone.apps or [ ];
   extraApps = map (n: pkgs.${n}) extraAppNames;
-  useProxy = internet == "proxy" || internet == "tor-fallback";
+  # Port offsets on netVM: nym=+0, i2p=+1000, tor=+2000
+  socksPort =
+    if socks == null then
+      null
+    else if internet == "i2p" then
+      socks + 1000
+    else if internet == "tor" || internet == "tor-fallback" then
+      socks + 2000
+    else
+      socks; # nym | proxy
+  useProxy = socksPort != null && internet != "none";
 in
 {
   imports = [ templatePath ];
@@ -79,11 +89,12 @@ in
     BUNKER_ZONE_COLOR = colorName;
     BUNKER_ZONE_HEX = color.hex;
   }
-  // lib.optionalAttrs (useProxy && socks != null) {
-    ALL_PROXY = "socks5h://10.0.0.1:${toString socks}";
-    HTTPS_PROXY = "socks5h://10.0.0.1:${toString socks}";
-    HTTP_PROXY = "socks5h://10.0.0.1:${toString socks}";
+  // lib.optionalAttrs useProxy {
+    ALL_PROXY = "socks5h://10.0.0.1:${toString socksPort}";
+    HTTPS_PROXY = "socks5h://10.0.0.1:${toString socksPort}";
+    HTTP_PROXY = "socks5h://10.0.0.1:${toString socksPort}";
     NO_PROXY = "10.0.0.0/24,127.0.0.1,localhost";
+    BUNKER_INTERNET = internet;
   }
   // lib.optionalAttrs disposable {
     BUNKER_DISPOSABLE = "1";

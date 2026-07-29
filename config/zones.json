@@ -8,7 +8,7 @@
     "vcpu": 2,
     "disposable": false,
     "color": "green",
-    "internet": "proxy",
+    "internet": "nym",
     "usb": [],
     "apps": []
   },
@@ -21,7 +21,7 @@
     "vcpu": 2,
     "disposable": false,
     "color": "blue",
-    "internet": "proxy",
+    "internet": "nym",
     "usb": [],
     "apps": []
   },
@@ -34,7 +34,7 @@
     "vcpu": 2,
     "disposable": true,
     "color": "yellow",
-    "internet": "proxy",
+    "internet": "nym",
     "usb": [],
     "apps": []
   },
@@ -47,8 +47,10 @@
     "vcpu": 2,
     "disposable": false,
     "color": "orange",
-    "internet": "proxy",
-    "usb": ["0bda:2838"],
+    "internet": "nym",
+    "usb": [
+      "0bda:2838"
+    ],
     "apps": []
   }
 }

@@ -83,7 +83,7 @@ PY
 cmd_add() {
   local name="$1"
   shift
-  local template="browser" color="red" disposable="false" internet="proxy" mem="1536" vcpu="2"
+  local template="browser" color="red" disposable="false" internet="nym" mem="1536" vcpu="2"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --template)
@@ -112,6 +112,8 @@ cmd_add() {
         ;;
     esac
   done
+  # default internet=nym (i2p|tor|none also valid)
+  [[ "$internet" == "proxy" ]] && internet="nym"
   need_py
   mapfile -t alloc < <(next_free)
   NAME="$name" TEMPLATE="$template" COLOR="$color" DISP="$disposable" NET="$internet" MEM="$mem" VCPU="$vcpu" \

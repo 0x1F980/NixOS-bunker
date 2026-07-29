@@ -12,8 +12,10 @@
 | DisposableVM | `"disposable": true` + `bunker-wipe <zone>` |
 | Label colors | `"color": "red\|orange\|yellow\|green\|blue\|purple\|…"` |
 | Per-VM apps | `"apps": ["htop", "vim"]` (nixpkgs names) |
-| Net policy | `"internet": "proxy" \| "none" \| "tor-fallback"` |
+| Net policy | `"internet": "nym" \| "i2p" \| "tor" \| "none"` |
 | USB defaults | `"usb": ["0bda:2838"]` auto-attach on start |
+
+Egress: **Nym** (one identity) / **i2p** alternative / **Tor** — [docs/egress.md](docs/egress.md).
 
 ### Zone CRUD
 
@@ -21,7 +23,7 @@
 bunker-zone list
 bunker-zone colors
 bunker-zone add throwaway --template browser --color red --disposable
-bunker-zone set throwaway internet=proxy mem=1536
+bunker-zone set throwaway internet=i2p
 bunker-zone apps throwaway add htop
 bunker-zone usb radio add 0bda:2838
 bunker-zone rm throwaway
@@ -37,12 +39,18 @@ Infrastructure (not CRUD): **net**, **usb**, **vault**.
 
 ## Status (Phase 2)
 
+Phase 2 **config complete**: host/zone eval+build paths, microVM net, Nym/**i2p**/Tor egress,
+USB/clipboard, zone CRUD + colors, first-boot docs — pushed to GitHub.
+
 ```bash
 nix build path:.#nixosConfigurations.host.config.system.build.toplevel
 nix build path:.#zone-net
 bunker-test-isolation
 bunker-zone list
 ```
+
+Still on **you** for a live machine: replace hardware stub, hashed passwords,
+`nixos-rebuild switch`, `bunker-zone-start net`, then `bunker-test-isolation --live`.
 
 ## First boot
 
