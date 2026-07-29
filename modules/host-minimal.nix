@@ -9,6 +9,36 @@
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
 
+  # Host = zone launchers + ops only. Daily apps live in VMs — strip GNOME junk.
+  services.gnome.core-apps.enable = false;
+  services.gnome.core-developer-tools.enable = false;
+  services.gnome.games.enable = false;
+  environment.gnome.excludePackages = with pkgs; [
+    baobab
+    cheese
+    epiphany
+    geary
+    gnome-calculator
+    gnome-calendar
+    gnome-characters
+    gnome-clocks
+    gnome-contacts
+    gnome-font-viewer
+    gnome-logs
+    gnome-maps
+    gnome-music
+    gnome-photos
+    gnome-text-editor
+    gnome-tour
+    gnome-weather
+    gnome-connections
+    loupe
+    simple-scan
+    snapshot
+    totem
+    yelp
+  ];
+
   xdg.portal = {
     enable = true;
     extraPortals = [ pkgs.xdg-desktop-portal-gnome ];
@@ -73,6 +103,11 @@
     wl-clipboard
     socat
     sshpass
+    # Host shell / files (core-apps off removes these otherwise)
+    gnome-console
+    nautilus
+    gnome-system-monitor
+    gnome-control-center
     (writeShellScriptBin "bunker-zone-start" ''
       exec /etc/bunker/scripts/zone-start.sh "$@"
     '')
