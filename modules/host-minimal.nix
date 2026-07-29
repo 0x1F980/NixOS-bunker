@@ -1,4 +1,4 @@
-# Minimal host: GNOME + microVM tools. No daily user apps (those live in guest VMs).
+# Minimal host: GNOME shell + zone launchers + VM ops. No daily apps (those are in VMs).
 { lib, pkgs, ... }:
 
 {
@@ -9,35 +9,55 @@
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
 
-  # Host = zone launchers + ops only. Daily apps live in VMs — strip GNOME junk.
+  # Absolutely no GNOME "app store" junk on host
   services.gnome.core-apps.enable = false;
   services.gnome.core-developer-tools.enable = false;
   services.gnome.games.enable = false;
+  services.gnome.gnome-browser-connector.enable = false;
+  services.gnome.gnome-initial-setup.enable = false;
+  services.gnome.gnome-remote-desktop.enable = false;
+  services.gnome.gnome-user-share.enable = false;
+  services.gnome.rygel.enable = false;
+  services.gnome.sushi.enable = false;
+
   environment.gnome.excludePackages = with pkgs; [
     baobab
     cheese
     epiphany
+    evince
     geary
     gnome-calculator
     gnome-calendar
     gnome-characters
     gnome-clocks
     gnome-contacts
+    gnome-disk-utility
     gnome-font-viewer
     gnome-logs
     gnome-maps
     gnome-music
     gnome-photos
+    gnome-software
     gnome-text-editor
     gnome-tour
+    gnome-user-docs
     gnome-weather
     gnome-connections
     loupe
+    nautilus
+    orca
     simple-scan
     snapshot
     totem
     yelp
   ];
+
+  # No NixOS manual / docs in menus
+  documentation.enable = false;
+  documentation.nixos.enable = false;
+  documentation.doc.enable = false;
+  documentation.info.enable = false;
+  documentation.man.enable = false;
 
   xdg.portal = {
     enable = true;
@@ -46,10 +66,7 @@
 
   users.mutableUsers = false;
 
-  # Plainwords (ASCII only — GDM/keyboard-safe). Change after first login: passwd
-  #   bunker / bunker
-  #   admin  / admin
-  #   root   / admin   (TTY emergency; remove later)
+  # bunker/bunker  admin/admin  root/admin — change with passwd
   users.users.bunker = {
     isNormalUser = true;
     description = "Bunker daily operator (no root)";
@@ -64,7 +81,7 @@
 
   users.users.admin = {
     isNormalUser = true;
-    description = "Host admin — TTY / nixos-rebuild only; do NOT use for daily GNOME";
+    description = "Host admin — TTY / nixos-rebuild only";
     extraGroups = [
       "wheel"
       "networkmanager"
@@ -72,42 +89,32 @@
     hashedPassword = "$6$SLamUKVV.Ht9pdyf$Wf96/D4CFCrnwFeA/DvhtbEC300Rub3rjuKmAuXqHqaDEb5m7vtCft6DQbagyk/qvmwLTFJgmARGqxWI2bE3q1";
   };
 
-  # Emergency: root on Ctrl+Alt+F2..F6 (password: admin)
   users.users.root.hashedPassword = "$6$SLamUKVV.Ht9pdyf$Wf96/D4CFCrnwFeA/DvhtbEC300Rub3rjuKmAuXqHqaDEb5m7vtCft6DQbagyk/qvmwLTFJgmARGqxWI2bE3q1";
 
-  # Emergency: TTY1 auto-login as admin (no password) until you disable this
-  services.getty.autologinUser = "admin";
-
+  # Drop emergency autologin now that login works
+  # services.getty.autologinUser = "admin";
 
   security.sudo.wheelNeedsPassword = true;
   security.polkit.enable = true;
 
   environment.etc."bunker/scripts".source = ../scripts;
 
+  # Host packages: zone/VM ops + tiny offline tools only (no consumer apps)
   environment.systemPackages = with pkgs; [
     git
     vim
     curl
-    wget
     btop
-    glances
-    mission-center
-    zellij
     qemu_kvm
     virtiofsd
     pciutils
     usbutils
-    age
     nftables
-    sox
     wl-clipboard
     socat
     sshpass
-    # Host shell / files (core-apps off removes these otherwise)
-    gnome-console
-    nautilus
-    gnome-system-monitor
-    gnome-control-center
+    gnome-console # terminal for bunker-* commands
+    gnome-control-center # Wi‑Fi / display / power only
     (writeShellScriptBin "bunker-zone-start" ''
       exec /etc/bunker/scripts/zone-start.sh "$@"
     '')
@@ -118,7 +125,6 @@
       exec /etc/bunker/scripts/usb-detach.sh "$@"
     '')
     (writeShellScriptBin "bunker-clipboard-send" ''
-      # compat → bunker-clip send
       exec /etc/bunker/scripts/clipboard.sh send "$@"
     '')
     (writeShellScriptBin "bunker-clip" ''
@@ -130,17 +136,14 @@
     (writeShellScriptBin "bunker-update" ''
       exec /etc/bunker/scripts/update-bunker.sh "$@"
     '')
-    (writeShellScriptBin "bunker-voice-anon" ''
-      exec /etc/bunker/scripts/voice-anon.sh "$@"
-    '')
     (writeShellScriptBin "bunker-killswitch" ''
       exec /etc/bunker/scripts/killswitch.sh "$@"
     '')
-    (writeShellScriptBin "bunker-wipe-browse" ''
-      exec /etc/bunker/scripts/zone-wipe-browse.sh "$@"
-    '')
     (writeShellScriptBin "bunker-wipe" ''
       exec /etc/bunker/scripts/zone-wipe.sh "$@"
+    '')
+    (writeShellScriptBin "bunker-wipe-browse" ''
+      exec /etc/bunker/scripts/zone-wipe-browse.sh "$@"
     '')
     (writeShellScriptBin "bunker-first-boot" ''
       exec /etc/bunker/scripts/first-boot.sh "$@"
@@ -153,8 +156,7 @@
     '')
   ];
 
-  services.pcscd.enable = true;
-  hardware.nitrokey.enable = true;
-
-  documentation.nixos.enable = true;
+  # No smartcard/nitrokey stack on host — use a zone if needed
+  services.pcscd.enable = false;
+  hardware.nitrokey.enable = false;
 }

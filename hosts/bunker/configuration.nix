@@ -14,18 +14,12 @@
     ../../modules/hardening-apparmor.nix
     ../../modules/hardening-sysctl.nix
     ../../modules/hardening-storage.nix
-    ../../modules/hardening-media.nix
     ../../modules/clipboard-oneway.nix
-    ../../modules/voice-anon.nix
     ../../modules/nym-netvm.nix
     ../../modules/microvm-network.nix
     ../../modules/zones-registry.nix
     ../../modules/zones-ui.nix
-    # Hardware overlays are selected by flake mkHost:
-    #   .#host          → hardware/generic-x86_64.nix
-    #   .#host-aarch64  → hardware/aarch64-generic.nix
-    # Optional board-specific (uncomment ONE if needed):
-    # ../../hardware/mba52.nix
+    # Hardware overlays via flake mkHost (x86_64 / aarch64 / …)
   ];
 
   networking.hostName = "nixos-bunker";
@@ -35,6 +29,11 @@
     "interface-name:vm-*"
   ];
   networking.firewall.enable = true;
+  # Operator SSH (hardening-portable disables it by default)
+  services.openssh.enable = lib.mkForce true;
+  services.openssh.settings.PasswordAuthentication = true;
+  services.openssh.settings.PermitRootLogin = "no";
+  networking.firewall.allowedTCPPorts = [ 22 ];
 
   time.timeZone = "Europe/Copenhagen";
   i18n.defaultLocale = "da_DK.UTF-8";
@@ -51,10 +50,7 @@
   };
 
   nixpkgs.config.allowUnfreePredicate =
-    pkg:
-    builtins.elem (lib.getName pkg) [
-      "obsidian"
-    ];
+    pkg: builtins.elem (lib.getName pkg) [ "obsidian" ];
 
   system.stateVersion = "26.05";
 }
