@@ -6,7 +6,7 @@
     keepassxc
     pass
     gnupg
-    kleopatra
+    kdePackages.kleopatra
     nitrokey-app
     age
     bleachbit
@@ -19,7 +19,7 @@
     kiwix
     libreoffice
     stellarium
-    marble
+    kdePackages.marble
     btop
     glances
     zellij
@@ -28,6 +28,7 @@
     git
     firejail
     bubblewrap
+    wl-clipboard
   ];
 
   programs.firejail.enable = true;

@@ -11,15 +11,33 @@
   ];
 
   # Minimal — no app template
-  services.openssh.enable = false;
+  services.openssh.enable = true;
   networking.firewall.enable = true;
+  networking.useDHCP = false;
+  microvm.interfaces = [
+    {
+      type = "bridge";
+      id = "vm-usb";
+      mac = "02:b0:00:00:00:02";
+      bridge = "br-bunker";
+    }
+  ];
+  networking.interfaces.eth0.ipv4.addresses = [
+    {
+      address = "10.0.0.2";
+      prefixLength = 24;
+    }
+  ];
+  networking.defaultGateway = {
+    address = "10.0.0.1";
+    interface = "eth0";
+  };
 
   environment.variables.BUNKER_ZONE = "usb";
 
-  # Guests receive USB via host qemu device_add / microvm hotplug driven by scripts/usb-attach.sh
   environment.etc."bunker/usb-policy".text = ''
     # One physical USB device -> one target VM at a time.
-    # Use on host: bunker-usb-attach <vm> <busid>
-    # Use on host: bunker-usb-detach <vm> <busid>
+    # Use on host: bunker-usb-attach <vm> <vendorId:productId>
+    # Use on host: bunker-usb-detach <vm> <vendorId:productId>
   '';
 }

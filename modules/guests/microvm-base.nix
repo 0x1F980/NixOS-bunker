@@ -14,10 +14,14 @@
     # On-demand RAM; adjust per zone overlays
     mem = lib.mkDefault 1024;
     vcpu = lib.mkDefault 2;
-    # virtio-rng for entropy
+    # QMP socket for USB hotplug (scripts/usb-attach.sh)
+    socket = lib.mkDefault "/run/microvm/${config.networking.hostName}.sock";
+    # virtio-rng + xhci for USB hotplug
     qemu.extraArgs = [
       "-device"
       "virtio-rng-pci"
+      "-device"
+      "qemu-xhci,id=xhci"
     ];
     # Do NOT share PipeWire / Wayland sockets by default
     # Do NOT enable guest→host clipboard channels
@@ -48,10 +52,24 @@
     fi
   '';
 
+  # microvm optimization enables networkd — set gateways with interface=eth0 in zone modules
+
   # Portable guest hardening subset
   networking.firewall.enable = true;
   networking.firewall.allowPing = false;
-  services.openssh.enable = false;
+  # SSH only for host→guest clipboard / admin from bunker LAN
+  services.openssh = {
+    enable = lib.mkDefault true;
+    openFirewall = false;
+    settings = {
+      PasswordAuthentication = true;
+      PermitRootLogin = "no";
+    };
+  };
+  networking.firewall.extraCommands = lib.mkAfter ''
+    iptables -C INPUT -p tcp -s 10.0.0.0/24 --dport 22 -j ACCEPT 2>/dev/null || \
+      iptables -I INPUT -p tcp -s 10.0.0.0/24 --dport 22 -j ACCEPT
+  '';
   services.avahi.enable = false;
   services.printing.enable = false;
   hardware.bluetooth.enable = false;

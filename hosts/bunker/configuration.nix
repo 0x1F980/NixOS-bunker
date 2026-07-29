@@ -18,6 +18,7 @@
     ../../modules/clipboard-oneway.nix
     ../../modules/voice-anon.nix
     ../../modules/nym-netvm.nix
+    ../../modules/microvm-network.nix
     # Uncomment ONE hardware overlay as needed:
     # ../../hardware/generic-x86_64.nix
     # ../../hardware/aarch64-generic.nix
@@ -26,6 +27,10 @@
 
   networking.hostName = "nixos-bunker";
   networking.networkmanager.enable = true;
+  networking.networkmanager.unmanaged = [
+    "interface-name:br-bunker"
+    "interface-name:vm-*"
+  ];
   networking.firewall.enable = true;
 
   time.timeZone = "Europe/Copenhagen";

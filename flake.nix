@@ -16,8 +16,6 @@
     }:
     let
       lib = nixpkgs.lib;
-
-      # Default build arch for the host flake output; override via --system when needed.
       defaultSystem = "x86_64-linux";
 
       mkPkgs =
@@ -26,14 +24,19 @@
           inherit system;
           config = {
             allowUnfreePredicate =
-              pkg:
-              builtins.elem (lib.getName pkg) [
-                "obsidian"
-                "nvidia-x11"
-                "nvidia-settings"
-              ];
+              pkg: builtins.elem (lib.getName pkg) [ "obsidian" ];
           };
         };
+
+      guestNames = [
+        "net"
+        "usb"
+        "personal"
+        "work"
+        "browse"
+        "vault"
+        "sdr"
+      ];
 
       mkGuest =
         name: system: modules:
@@ -56,16 +59,8 @@
           ++ modules;
         };
 
-      guestNames = [
-        "net"
-        "usb"
-        "personal"
-        "work"
-        "browse"
-        "vault"
-        "sdr"
-      ];
-
+      # Host does NOT embed all guest flakes (avoids building every zone into host closure).
+      # Zones are on-demand via `nix run .#zone-<name>` / bunker-zone-start.
       mkHost =
         system:
         nixpkgs.lib.nixosSystem {
@@ -79,21 +74,12 @@
               { ... }:
               {
                 nixpkgs.hostPlatform = system;
-                # Declarative microVMs from this flake
-                microvm.vms = lib.genAttrs guestNames (name: {
-                  flake = self;
-                  updateFlake = "git+file://${self.outPath}";
-                });
               }
             )
           ];
         };
-    in
-    {
-      nixosConfigurations = {
-        host = mkHost defaultSystem;
-        host-aarch64 = mkHost "aarch64-linux";
 
+      guests = {
         net = mkGuest "net" defaultSystem [ ./modules/guests/net.nix ];
         usb = mkGuest "usb" defaultSystem [ ./modules/guests/usb.nix ];
         personal = mkGuest "personal" defaultSystem [ ./modules/guests/personal.nix ];
@@ -103,10 +89,32 @@
         sdr = mkGuest "sdr" defaultSystem [ ./modules/guests/sdr.nix ];
       };
 
-      # Convenience: packages from default system for scripts wrapping
-      packages.${defaultSystem}.default = (mkPkgs defaultSystem).writeText "bunker-readme" ''
-        Build host: nixos-rebuild switch --flake .#host
-        Start zones: ./scripts/zone-start.sh
-      '';
+      zonePackages = lib.listToAttrs (
+        map (name: {
+          name = "zone-${name}";
+          value = guests.${name}.config.microvm.declaredRunner;
+        }) guestNames
+      );
+    in
+    {
+      nixosConfigurations = {
+        host = mkHost defaultSystem;
+        host-aarch64 = mkHost "aarch64-linux";
+      }
+      // guests;
+
+      packages.${defaultSystem} = zonePackages
+        // {
+          default = (mkPkgs defaultSystem).writeText "bunker-readme" ''
+            Build host: nixos-rebuild switch --flake .#host
+            Run zone:   nix run .#zone-net
+                        bunker-zone-start personal
+          '';
+        };
+
+      apps.${defaultSystem} = lib.mapAttrs (name: drv: {
+        type = "app";
+        program = "${drv}/bin/microvm-run";
+      }) zonePackages;
     };
 }

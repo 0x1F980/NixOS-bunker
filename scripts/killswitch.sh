@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host killswitch helper — block forwarding/clearnet when netVM/Nym is down.
+# Host killswitch — drop app-guest→WAN forward; allow netVM (vm-net) egress for mixnet.
 # Usage: bunker-killswitch [enable|disable|status]
 set -euo pipefail
 
@@ -7,23 +7,26 @@ MODE="${1:-status}"
 TABLE=bunker_killswitch
 
 status() {
-  nft list table inet "$TABLE" 2>/dev/null || echo "killswitch table not loaded"
+  nft list table inet "$TABLE" 2>/dev/null || echo "killswitch table not loaded (disabled)"
 }
 
 enable() {
   nft delete table inet "$TABLE" 2>/dev/null || true
-  nft -f - <<EOF
-table inet $TABLE {
+  nft -f - <<'EOF'
+table inet bunker_killswitch {
   chain forward {
-    type filter hook forward priority 0; policy drop;
-    # Allow only if you add explicit accepts for netVM paths
-  }
-  chain output {
-    type filter hook output priority 0; policy accept;
+    type filter hook forward priority -10; policy accept;
+    # L2 / east-west on bunker bridge (app ↔ netVM SOCKS)
+    iifname "br-bunker" oifname "br-bunker" accept
+    # netVM may forward to WAN (Nym/Tor/DNS upstream)
+    iifname "vm-net" accept
+    # Drop every other guest tap → WAN
+    iifname "vm-*" drop
+    iifname "br-bunker" drop
   }
 }
 EOF
-  echo "Killswitch ENABLED (forward drop)."
+  echo "Killswitch ENABLED (app guests blocked to WAN; vm-net egress allowed)."
 }
 
 disable() {

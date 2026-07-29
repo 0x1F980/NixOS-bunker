@@ -1,34 +1,86 @@
 #!/usr/bin/env bash
-# Attach one USB device to one microVM (Qubes-like one-at-a-time).
-# Usage: bunker-usb-attach <vm> <busid>   e.g. bunker-usb-attach sdr 1-2
+# Attach one USB device to one microVM via QMP (device_add usb-host).
+# Usage: bunker-usb-attach <vm> <vendorId:productId>   e.g. bunker-usb-attach sdr 0bda:2838
 set -euo pipefail
 
 VM="${1:-}"
-BUSID="${2:-}"
+DEVID="${2:-}"
 STATE_DIR="${BUNKER_USB_STATE:-/var/lib/bunker/usb-assign}"
+MON_DIR="${BUNKER_QEMU_MON:-/var/lib/microvms}"
 
 usage() {
-  echo "Usage: $0 <vm> <usb-busid>"
-  echo "  Example: $0 sdr 1-4"
-  echo "  List devices: lsusb -t"
+  echo "Usage: $0 <vm> <vendorId:productId>"
+  echo "  Example: $0 sdr 0bda:2838"
+  echo "  List: lsusb"
 }
 
-if [[ -z "$VM" || -z "$BUSID" ]]; then
+qmp() {
+  local sock="$1"
+  local cmd="$2"
+  # QMP requires capabilities handshake then the command
+  if command -v socat >/dev/null 2>&1; then
+    {
+      sleep 0.05
+      printf '%s\n' '{"execute":"qmp_capabilities"}'
+      sleep 0.05
+      printf '%s\n' "$cmd"
+    } | socat - UNIX-CONNECT:"$sock"
+  else
+    echo "ERROR: socat required for QMP" >&2
+    return 1
+  fi
+}
+
+if [[ -z "$VM" || -z "$DEVID" ]]; then
   usage
   exit 1
 fi
 
-mkdir -p "$STATE_DIR"
-
-# Enforce one-at-a-time: refuse if busid already assigned
-if [[ -f "$STATE_DIR/$BUSID" ]]; then
-  cur="$(cat "$STATE_DIR/$BUSID")"
-  echo "ERROR: device $BUSID already attached to VM '$cur'. Detach first." >&2
+if [[ ! "$DEVID" =~ ^[0-9a-fA-F]+:[0-9a-fA-F]+$ ]]; then
+  echo "ERROR: device must be vendor:product hex (lsusb)" >&2
   exit 1
 fi
 
-echo "$VM" >"$STATE_DIR/$BUSID"
-echo "Recorded assign $BUSID -> $VM"
-echo "NOTE: Complete hotplug with your microvm/QEMU device_add for vendor:product."
-echo "      Example (manual): virsh/qemu-monitor device_add usb-host,hostbus=...,hostaddr=..."
-echo "Policy: only one VM may hold a given device."
+VENDOR="${DEVID%:*}"
+PRODUCT="${DEVID#*:}"
+mkdir -p "$STATE_DIR"
+
+if [[ -f "$STATE_DIR/$DEVID" ]]; then
+  cur="$(cat "$STATE_DIR/$DEVID")"
+  echo "ERROR: $DEVID already attached to '$cur'. Detach first." >&2
+  exit 1
+fi
+
+MON=""
+for cand in \
+  "/run/microvm/${VM}.sock" \
+  "$MON_DIR/$VM/sock" \
+  "$MON_DIR/$VM/qemu.sock" \
+  "$MON_DIR/$VM/monitor.sock" \
+  "/run/microvm/$VM/monitor.sock"
+do
+  if [[ -S "$cand" ]]; then
+    MON="$cand"
+    break
+  fi
+done
+
+if [[ -z "$MON" ]]; then
+  echo "ERROR: no QMP socket for '$VM' (expected /run/microvm/${VM}.sock)." >&2
+  echo "Start the zone first: bunker-zone-start $VM" >&2
+  exit 1
+fi
+
+VID="0x${VENDOR}"
+PID="0x${PRODUCT}"
+USBID="usb_${VENDOR}_${PRODUCT}"
+CMD=$(printf '{"execute":"device_add","arguments":{"driver":"usb-host","vendorid":%s,"productid":%s,"id":"%s","bus":"xhci.0"}}' \
+  "$((VID))" "$((PID))" "$USBID")
+
+if ! qmp "$MON" "$CMD"; then
+  echo "ERROR: QMP device_add failed via $MON" >&2
+  exit 1
+fi
+
+echo "$VM" >"$STATE_DIR/$DEVID"
+echo "Attached $DEVID -> $VM via $MON"

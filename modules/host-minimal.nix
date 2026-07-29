@@ -60,6 +60,8 @@
     nftables
     sox
     wl-clipboard
+    socat
+    sshpass
     (writeShellScriptBin "bunker-zone-start" ''
       exec /etc/bunker/scripts/zone-start.sh "$@"
     '')

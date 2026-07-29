@@ -7,7 +7,7 @@
     pass
     gnupg
     age
-    kleopatra
+    kdePackages.kleopatra
   ];
 
   programs.gnupg.agent.enable = true;
@@ -19,6 +19,7 @@
   microvm.interfaces = lib.mkForce [ ];
 
   networking.useDHCP = false;
+  networking.useNetworkd = lib.mkForce false;
   networking.interfaces = lib.mkForce { };
   networking.defaultGateway = lib.mkForce null;
   networking.nameservers = lib.mkForce [ ];
@@ -28,5 +29,5 @@
 
   # No browsers / chat / mail
   systemd.coredump.enable = false;
-  services.openssh.enable = false;
+  services.openssh.enable = lib.mkForce false;
 }

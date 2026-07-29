@@ -4,28 +4,28 @@
 {
   imports = [ ./template.nix ];
 
-  microvm.mem = 2048;
+  microvm.mem = 1920;
   microvm.interfaces = [
     {
-      type = "tap";
+      type = "bridge";
       id = "vm-sdr";
       mac = "02:b0:00:00:00:14";
+      bridge = "br-bunker";
     }
   ];
 
+  networking.useDHCP = false;
   environment.systemPackages = with pkgs; [
     wireshark
-    # sigdigger / sdrpp may vary by nixpkgs channel — include when available
     gqrx
     rtl-sdr
     hackrf
     urh
     rtl_433
-    # meshtastic — python package often as meshtastic CLI
-  ]
-  ++ lib.optional (pkgs ? sdrpp) pkgs.sdrpp
-  ++ lib.optional (pkgs ? sigdigger) pkgs.sigdigger
-  ++ lib.optional (pkgs ? meshtastic) pkgs.meshtastic;
+    sdrpp
+    sigdigger
+    meshtastic
+  ];
 
   # USB radio dongles attached via host usb-attach → this VM only
   hardware.enableAllFirmware = lib.mkDefault false;
@@ -38,7 +38,10 @@
     HTTP_PROXY = "socks5h://10.0.0.1:1084";
   };
 
-  networking.defaultGateway = lib.mkDefault "10.0.0.1";
+  networking.defaultGateway = lib.mkDefault {
+    address = "10.0.0.1";
+    interface = "eth0";
+  };
   networking.interfaces.eth0.ipv4.addresses = lib.mkDefault [
     {
       address = "10.0.0.14";
