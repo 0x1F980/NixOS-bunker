@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Attach one USB device to one microVM via QMP (device_add usb-host).
-# Usage: bunker-usb-attach <vm> <vendorId:productId>   e.g. bunker-usb-attach sdr 0bda:2838
+# Usage: bunker-usb-attach <vm> <vendorId:productId>   e.g. bunker-usb-attach radio 0bda:2838
 set -euo pipefail
 
 VM="${1:-}"
@@ -10,7 +10,7 @@ MON_DIR="${BUNKER_QEMU_MON:-/var/lib/microvms}"
 
 usage() {
   echo "Usage: $0 <vm> <vendorId:productId>"
-  echo "  Example: $0 sdr 0bda:2838"
+  echo "  Example: $0 radio 0bda:2838"
   echo "  List: lsusb"
 }
 
