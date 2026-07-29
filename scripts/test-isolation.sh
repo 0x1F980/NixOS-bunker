@@ -58,8 +58,14 @@ check "clipboard refuses guest→host" \
   grep -q 'BLOCKED' "$ROOT/scripts/clipboard.sh"
 check "clipboard has zone copy" \
   grep -q 'cmd_copy' "$ROOT/scripts/clipboard.sh"
-check "clipboard has auto-clear" \
-  grep -q 'BUNKER_CLIP_TTL' "$ROOT/scripts/clipboard.sh"
+check "clipboard zone auto-clear TTL" \
+  grep -q 'schedule_zone_clear' "$ROOT/scripts/clipboard.sh" && \
+  grep -q 'BUNKER_CLIP_TTL:-30' "$ROOT/scripts/clipboard.sh"
+check "clipboard keeps host/global on send" \
+  grep -q 'host/global clipboard KEPT' "$ROOT/scripts/clipboard.sh"
+check "clipboard.conf is hackable" \
+  grep -q 'clipboard.conf' "$ROOT/modules/clipboard-oneway.nix" && \
+  grep -q 'TTL=30' "$ROOT/modules/clipboard-oneway.nix"
 
 check "USB attach speaks QMP to usbVM only" \
   grep -q 'qmp_capabilities' "$ROOT/scripts/usb-attach.sh"

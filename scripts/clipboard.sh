@@ -1,32 +1,53 @@
 #!/usr/bin/env bash
-# Minimal clipboard mediation (Qubes-inspired, tiny).
+# Minimal clipboard mediation (Qubes-inspired, hackable).
 #
 # ALLOWED:
-#   bunker-clip send <zone>           # host clipboard → zone
-#   bunker-clip copy <src> <dst>      # zone → zone (via host tmp only; not left on host clip)
-#   bunker-clip clear                 # wipe staging + host clipboard now
+#   bunker-clip send <zone>           # host clipboard → zone (host clip KEPT)
+#   bunker-clip copy <src> <dst>      # zone → zone via staging only (never on host clip)
+#   bunker-clip clear                 # wipe staging + host clip NOW (manual)
 #
-# BLOCKED (no tools for these):
+# BLOCKED (no tools):
 #   guest → host clipboard
 #   SPICE/QEMU shared clipboard
 #   silent VM↔VM / VM→host
 #
-# Auto-clear: staging (+ optional host clip after send) wiped after BUNKER_CLIP_TTL sec (default 45).
+# AUTO-CLEAR (default 30s, override anywhere below):
+#   After send/copy: ZONE clipboard (+ staging file) wiped after TTL.
+#   Host/global clipboard is NEVER auto-cleared by send/copy.
+#
+# Hack TTL (first match wins):
+#   1) env BUNKER_CLIP_TTL=60
+#   2) /etc/bunker/clipboard.conf  →  TTL=30
+#   3) default 30
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ZONE_PASS="${BUNKER_ZONE_PASS:-zone}"
-TTL="${BUNKER_CLIP_TTL:-45}"
 STAGING_DIR="${BUNKER_CLIP_DIR:-/tmp/bunker-clip}"
 mkdir -p "$STAGING_DIR"
 chmod 700 "$STAGING_DIR"
 
+# Load operator-tunable TTL
+if [[ -z "${BUNKER_CLIP_TTL:-}" && -f /etc/bunker/clipboard.conf ]]; then
+  # shellcheck disable=SC1091
+  # TTL=NN in conf
+  TTL_LINE="$(grep -E '^\s*TTL\s*=' /etc/bunker/clipboard.conf 2>/dev/null | tail -1 || true)"
+  if [[ -n "$TTL_LINE" ]]; then
+    BUNKER_CLIP_TTL="${TTL_LINE#*=}"
+    BUNKER_CLIP_TTL="${BUNKER_CLIP_TTL// /}"
+  fi
+fi
+TTL="${BUNKER_CLIP_TTL:-30}"
+
 usage() {
   cat <<EOF
 Usage:
-  bunker-clip send <zone>         host clipboard → zone
-  bunker-clip copy <src> <dst>    zone → zone (mediated)
-  bunker-clip clear               wipe staging + host clipboard
+  bunker-clip send <zone>         host clipboard → zone (host clip kept)
+  bunker-clip copy <src> <dst>    zone → zone (mediated; not on host clip)
+  bunker-clip clear               wipe staging + host clipboard now
+
+Zone clipboard auto-clears after ${TTL}s (BUNKER_CLIP_TTL or /etc/bunker/clipboard.conf).
+Host/global clipboard is kept on send/copy.
 EOF
 }
 
@@ -36,7 +57,6 @@ lookup_ip() {
     net) echo 10.0.0.1; return ;;
     usb) echo 10.0.0.2; return ;;
     vault) echo ""; return ;;
-    sdr) name=radio ;;
   esac
   if [[ -f /etc/bunker/zones.json ]]; then
     python3 -c "import json;z=json.load(open('/etc/bunker/zones.json'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null && return
@@ -80,17 +100,19 @@ host_clear_clip() {
   fi
 }
 
-schedule_clear() {
-  local also_host="${1:-0}"
+# Wipe zone clipboard after TTL (does NOT touch host clipboard)
+schedule_zone_clear() {
+  local ip="$1"
+  local zone="$2"
   (
     sleep "$TTL"
+    ssh_zone "$ip" \
+      'command -v wl-copy >/dev/null && wl-copy --clear 2>/dev/null || printf "" | wl-copy 2>/dev/null || true; rm -f /tmp/bunker-clipboard-in.txt' \
+      2>/dev/null || true
     rm -f "$STAGING_DIR"/* 2>/dev/null || true
-    if [[ "$also_host" == "1" ]]; then
-      host_clear_clip
-    fi
   ) >/dev/null 2>&1 &
   disown || true
-  echo "auto-clear in ${TTL}s (staging${also_host:+ + host clip})"
+  echo "zone '$zone' clipboard auto-clear in ${TTL}s (host/global clip kept)"
 }
 
 deliver_to() {
@@ -107,12 +129,13 @@ deliver_to() {
   local bytes
   bytes="$(wc -c <"$file" | tr -d ' ')"
   echo "OK → $zone ($ip) (${bytes} bytes)"
+  schedule_zone_clear "$ip" "$zone"
 }
 
 cmd_clear() {
   rm -f "$STAGING_DIR"/* 2>/dev/null || true
   host_clear_clip
-  echo "cleared staging + host clipboard"
+  echo "cleared staging + host clipboard (manual)"
   echo "BLOCKED paths remain blocked (no guest→host tool)."
 }
 
@@ -126,8 +149,8 @@ cmd_send() {
     exit 1
   fi
   deliver_to "$zone" "$f"
+  echo "host/global clipboard KEPT (not auto-cleared)"
   echo "REFUSING guest→host."
-  schedule_clear 1
 }
 
 cmd_copy() {
@@ -141,7 +164,7 @@ cmd_copy() {
     exit 1
   fi
   f="$STAGING_DIR/copy.$$"
-  # Pull from source zone clipboard or fallback file — NEVER publish to host clipboard
+  # Pull from source — NEVER publish to host clipboard
   if ! ssh_zone "$sip" 'if command -v wl-paste >/dev/null; then wl-paste -n; elif test -f /tmp/bunker-clipboard-in.txt; then cat /tmp/bunker-clipboard-in.txt; fi' >"$f"; then
     echo "ERROR: could not read clipboard from $src" >&2
     exit 1
@@ -151,11 +174,9 @@ cmd_copy() {
     exit 1
   fi
   deliver_to "$dst" "$f"
-  # wipe source staging hint inside src (optional hygiene)
   ssh_zone "$sip" 'rm -f /tmp/bunker-clipboard-in.txt' || true
-  echo "mediated $src → $dst (not placed on host clipboard)"
+  echo "mediated $src → $dst (not on host clipboard; host/global kept)"
   echo "BLOCKED: guest→host, SPICE share, silent VM links"
-  schedule_clear 0
 }
 
 main() {

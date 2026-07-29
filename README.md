@@ -74,9 +74,11 @@ bunker-test-isolation --live
 | `bunker-term <zone>` | Colored SSH shell into zone |
 | `bunker-wipe <zone>` | Wipe disposable zone data |
 | `bunker-usb-attach <zone> <vid:pid>` | usbVM broker → zone (usbip; 1→many) |
-| `bunker-clip send <zone>` | Host clipboard → zone |
-| `bunker-clip copy <a> <b>` | Zone → zone (mediated; not left on host clip) |
-| `bunker-clip clear` | Wipe staging + host clipboard |
+| `bunker-clip send <zone>` | Host → zone (host clip **kept**; zone clip clears after TTL) |
+| `bunker-clip copy <a> <b>` | Zone → zone (mediated; not on host clip) |
+| `bunker-clip clear` | Wipe staging + host clipboard **now** |
+
+Clipboard TTL (default **30s**): edit `/etc/bunker/clipboard.conf` or `BUNKER_CLIP_TTL=60`.
 | `bunker-killswitch enable` | Block app-guest→WAN; allow vm-net |
 | `bunker-first-boot` | First-boot checklist |
 | `bunker-test-isolation [--live]` | Policy (+ optional live) tests |
