@@ -15,6 +15,14 @@ if [[ -z "$ZONE" ]]; then
 fi
 
 lookup() {
+  case "$ZONE" in
+    net) echo 10.0.0.1; echo black; return ;;
+    usb) echo 10.0.0.2; echo purple; return ;;
+    vault)
+      echo "vault has no NIC — use console/microvm attach, not SSH" >&2
+      exit 1
+      ;;
+  esac
   python3 - "$ZONES_JSON" "$ZONE" <<'PY'
 import json, sys
 z = json.load(open(sys.argv[1]))
