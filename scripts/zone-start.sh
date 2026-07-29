@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SYSTEM_ZONES=(net usb vault)
+SYSTEM_ZONES=(net usb voice vault)
 TARGET="${1:-}"
 
 usage() {
@@ -87,6 +87,17 @@ start_one() {
           echo "==> usb default attach $d -> $z"
           "$ROOT/scripts/usb-attach.sh" "$z" "$d" || echo "WARN: usb attach $d failed (VM may still be booting)"
         done
+      fi
+      # Voice anonymizer default (voiceVM 10.0.0.3)
+      local vmode=""
+      if command -v python3 >/dev/null; then
+        vmode="$(python3 -c "import json;z=json.load(open('$ROOT/config/zones.json'));print(z.get('$z',{}).get('voice') or 'none')" 2>/dev/null || true)"
+        [[ -z "$vmode" ]] && [[ -f /etc/bunker/zones.json ]] && \
+          vmode="$(python3 -c "import json;z=json.load(open('/etc/bunker/zones.json'));print(z.get('$z',{}).get('voice') or 'none')" 2>/dev/null || true)"
+      fi
+      if [[ -n "$vmode" && "$vmode" != "none" ]]; then
+        echo "==> voice default ($vmode) → voiceVM"
+        "$ROOT/scripts/voice-attach.sh" "$z" || echo "WARN: voice attach failed (is voiceVM up?)"
       fi
     fi
   elif systemctl list-unit-files "microvm@$z.service" >/dev/null 2>&1; then

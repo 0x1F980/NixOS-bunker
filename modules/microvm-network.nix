@@ -14,6 +14,7 @@ let
   tapNames = [
     "vm-net"
     "vm-usb"
+    "vm-voice"
   ]
   ++ appTapNames;
 in

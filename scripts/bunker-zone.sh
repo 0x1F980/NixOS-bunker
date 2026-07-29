@@ -202,7 +202,9 @@ for pair in os.environ["ARGS"].split():
             raise SystemExit("kind must be appvm|disposable")
         z[n][k] = v
         z[n]["disposable"] = v == "disposable"
-    elif k in ("template", "ip", "mac", "color", "internet"):
+    elif k in ("template", "ip", "mac", "color", "internet", "voice"):
+        if k == "voice" and v not in ("none", "anon", "chimera"):
+            raise SystemExit("voice must be none|anon|chimera")
         z[n][k] = v
     else:
         raise SystemExit(f"unsupported key: {k}")

@@ -29,6 +29,7 @@ bunker_zone_ip() {
   case "$name" in
     net) echo 10.0.0.1; return ;;
     usb) echo 10.0.0.2; return ;;
+    voice) echo 10.0.0.3; return ;;
     vault) echo ""; return ;;
   esac
   local zj

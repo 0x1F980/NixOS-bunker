@@ -19,6 +19,7 @@ lookup() {
   case "$ZONE" in
     net) echo 10.0.0.1; echo black; return ;;
     usb) echo 10.0.0.2; echo purple; return ;;
+    voice) echo 10.0.0.3; echo orange; return ;;
     vault)
       echo "vault has no NIC — use console/microvm attach, not SSH" >&2
       exit 1

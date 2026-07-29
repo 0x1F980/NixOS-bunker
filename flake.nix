@@ -126,6 +126,7 @@
           systemGuests = {
             net = mkGuest "net" system [ ./modules/guests/net.nix ];
             usb = mkGuest "usb" system [ ./modules/guests/usb.nix ];
+            voice = mkGuest "voice" system [ ./modules/guests/voice.nix ];
             vault = mkGuest "vault" system [ ./modules/guests/vault.nix ];
           };
           appGuests = lib.mapAttrs (

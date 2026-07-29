@@ -11,7 +11,8 @@
     "color": "green",
     "internet": "nym",
     "usb": [],
-    "apps": []
+    "apps": [],
+    "voice": "none"
   },
   "work": {
     "template": "dev",
@@ -25,7 +26,8 @@
     "color": "blue",
     "internet": "nym",
     "usb": [],
-    "apps": []
+    "apps": [],
+    "voice": "none"
   },
   "browse": {
     "template": "browser",
@@ -39,7 +41,8 @@
     "color": "yellow",
     "internet": "nym",
     "usb": [],
-    "apps": []
+    "apps": [],
+    "voice": "none"
   },
   "radio": {
     "template": "radio",
@@ -55,6 +58,7 @@
     "usb": [
       "0bda:2838"
     ],
-    "apps": []
+    "apps": [],
+    "voice": "none"
   }
 }

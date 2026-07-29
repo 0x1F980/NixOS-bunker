@@ -145,6 +145,7 @@ let
   zonesTui = pkgs.callPackage ../tools/bunker-zones-tui { };
   deniableTui = pkgs.callPackage ../tools/bunker-deniable-tui { };
   panicTui = pkgs.callPackage ../tools/bunker-panic-tui { };
+  voiceTui = pkgs.callPackage ../tools/bunker-voice-tui { };
 
   brokerLauncher = pkgs.writeShellScriptBin "bunker-broker" ''
     set -euo pipefail
@@ -200,6 +201,23 @@ let
   panicLauncher = pkgs.writeShellScriptBin "bunker-panic-ui" ''
     set -euo pipefail
     BIN="${panicTui}/bin/bunker-panic-tui"
+    if command -v kgx >/dev/null 2>&1; then
+      exec kgx -e "$BIN"
+    elif command -v gnome-terminal >/dev/null 2>&1; then
+      exec gnome-terminal -- "$BIN"
+    else
+      exec "$BIN"
+    fi
+  '';
+
+  voiceLauncher = pkgs.writeShellScriptBin "bunker-voice" ''
+    set -euo pipefail
+    if [[ -z "''${BUNKER_ZONES_JSON:-}" ]]; then
+      for p in "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
+        [[ -f "$p" ]] && export BUNKER_ZONES_JSON="$p" && break
+      done
+    fi
+    BIN="${voiceTui}/bin/bunker-voice-tui"
     if command -v kgx >/dev/null 2>&1; then
       exec kgx -e "$BIN"
     elif command -v gnome-terminal >/dev/null 2>&1; then
@@ -266,6 +284,28 @@ let
       keywords = [ "usbvm" ];
     })
     (mkLauncher {
+      id = "voice";
+      title = "voice · voicevm";
+      comment = "Mic anonymizer broker 10.0.0.3 — start voiceVM";
+      exec = "bunker-zone-start voice";
+      colorName = "orange";
+      category = "X-Qube-Service";
+      keywords = [
+        "voicevm"
+        "chimera"
+        "mic"
+      ];
+    })
+    (mkLauncher {
+      id = "voice-term";
+      title = "voice-term · voicevm";
+      comment = "SSH zone@10.0.0.3";
+      exec = "bunker-term voice";
+      colorName = "orange";
+      category = "X-Qube-Service";
+      keywords = [ "voicevm" ];
+    })
+    (mkLauncher {
       id = "vault";
       title = "vault · appvm";
       comment = "Air-gapped vault (no NIC)";
@@ -282,6 +322,20 @@ let
       colorName = "blue";
       category = "X-Qube-Service";
       keywords = [ "broker" ];
+    })
+    (mkLauncher {
+      id = "voice-defaults";
+      title = "voice · service";
+      comment = "ratatui — mic anonymizer 1→many (Chimera/anon)";
+      exec = "bunker-voice";
+      colorName = "orange";
+      category = "X-Qube-Service";
+      keywords = [
+        "chimera"
+        "anonymizer"
+        "mic"
+        "voice"
+      ];
     })
     (mkLauncher {
       id = "zones";
@@ -448,6 +502,8 @@ in
     deniableLauncher
     panicTui
     panicLauncher
+    voiceTui
+    voiceLauncher
     templateEdit
     dirAppvm
     dirDisp
@@ -471,12 +527,13 @@ in
       Templates  — templates/*.nix (package sets); edit then nixos-rebuild
       AppVMs     — zones.json disposable=false (or kind=appvm)
       Disposables— zones.json disposable=true  (or kind=disposable)
-      Service    — net/usb / zones / deniable / panic / defaults / killswitch / help
+      Service    — net/usb/voice / zones / deniable / panic / defaults / killswitch / help
 
     Manual:  man bunker   OR   /etc/bunker/MANUAL   OR   help · service
 
     Zone CRUD (prefer TUI/CLI — not hand-editing Nix modules):
       zones · service   OR   bunker-zones   OR   bunker-zone list|add|set|rm
+      voice · service  — mic anonymizer 1→many (Chimera / anon)
       deniable · service — whole hidden VMs (Shufflecake layers)
       panic · service  — wipe panic-flagged deniable keys (☢)
       Hand-edit config/zones.json is OK (same SoT). Then: nixos-rebuild switch
@@ -485,6 +542,6 @@ in
       bunker-zone list|add|set|rm|apps|usb|templates
       bunker-zone add myvm --template desktop          # AppVM
       bunker-zone add throwaway --template browser --disposable
-      bunker-zone set myvm template=dev internet=i2p
+      bunker-zone set myvm template=dev internet=i2p voice=chimera
   '';
 }

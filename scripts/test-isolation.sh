@@ -114,6 +114,15 @@ check "service net/usb launchers in zones-ui" \
   grep -q 'net · netvm' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'usb · usbvm' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'bunker-usb-gui' "$ROOT/modules/zones-ui.nix"
+check "voice · service mic anonymizer TUI" \
+  test -f "$ROOT/tools/bunker-voice-tui/src/main.rs" && \
+  test -f "$ROOT/modules/guests/voice.nix" && \
+  grep -q 'voice · service' "$ROOT/modules/zones-ui.nix" && \
+  grep -q '10.0.0.3' "$ROOT/modules/guests/voice.nix"
+check "voice docs + attach scripts" \
+  test -f "$ROOT/docs/voice.md" && \
+  test -f "$ROOT/scripts/voice-attach.sh" && \
+  grep -q '"voice"' "$ROOT/config/zones.json"
 check "qube folders AppVMs Disposables Templates" \
   grep -q 'X-Qube-AppVM' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'X-Qube-Template' "$ROOT/modules/zones-ui.nix" && \

@@ -166,6 +166,12 @@ in
     (writeShellScriptBin "bunker-usb-detach" ''
       exec /etc/bunker/scripts/usb-detach.sh "$@"
     '')
+    (writeShellScriptBin "bunker-voice-attach" ''
+      exec /etc/bunker/scripts/voice-attach.sh "$@"
+    '')
+    (writeShellScriptBin "bunker-voice-detach" ''
+      exec /etc/bunker/scripts/voice-detach.sh "$@"
+    '')
     (writeShellScriptBin "bunker-clip" ''
       exec /etc/bunker/scripts/clipboard.sh "$@"
     '')

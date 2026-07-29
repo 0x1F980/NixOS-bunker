@@ -15,7 +15,7 @@
 | `tools/bunker-broker-tui/` | Ratatui net/usb defaults (`defaults · service`) |
 | `tools/bunker-zones-tui/` | Ratatui AppVM/Disposable CRUD (`zones · service`) |
 | `tools/bunker-deniable-tui/` | Ratatui hidden whole-VMs / Shufflecake (`deniable · service`) |
-| `tools/bunker-panic-tui/` | Panic button ☢ (`panic · service`) |
+| `tools/bunker-voice-tui/` | Ratatui voiceVM mic anonymizer (`voice · service`) |
 | `config/deniable-zones.json` | Deniable whole-VM registry |
 | `docs/` | Topic docs + `MANUAL.txt` (also `man bunker`) |
 | `man/bunker.1` | Operator manpage |
@@ -77,6 +77,7 @@ bunker-test-isolation --live
 | `bunker-deniable` / **deniable · service** | Hide/show **whole** VMs (Shufflecake layers) |
 | `bunker-panic-ui` / **panic · service** | ☢ Wipe panic-flagged deniable keys + RAM wipe |
 | `bunker-broker` / **defaults · service** | Ratatui net/usb broker defaults |
+| `bunker-voice` / **voice · service** | Ratatui mic anonymizer 1→many (Chimera/anon) |
 | `bunker-zone-start <zone\|all>` | Start microVM(s) (+ USB defaults) |
 | `bunker-term <zone>` | Colored SSH shell into zone |
 | `bunker-wipe <zone>` | Wipe disposable zone data |
@@ -97,6 +98,7 @@ Clipboard TTL (default **30s**): edit `/etc/bunker/clipboard.conf` or `BUNKER_CL
 
 - **`man bunker`** or [docs/MANUAL.txt](docs/MANUAL.txt) (`/etc/bunker/MANUAL`)
 - [docs/deniable.md](docs/deniable.md) — hidden whole-VMs + panic
+- [docs/voice.md](docs/voice.md) — voiceVM mic anonymizer (Chimera)
 - [docs/portability.md](docs/portability.md) — multi-ISA hosts
 - [docs/usb.md](docs/usb.md) — usbVM broker (1→many)
 - [docs/egress.md](docs/egress.md) — netVM / Nym / i2p / Tor
