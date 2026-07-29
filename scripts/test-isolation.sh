@@ -83,8 +83,12 @@ check "arch helper maps uname to host attr" \
   test -f "$ROOT/scripts/lib-arch.sh" && grep -q 'bunker_host_flake_attr' "$ROOT/scripts/lib-arch.sh"
 check "generic-linux hardware fallback exists" \
   test -f "$ROOT/hardware/generic-linux.nix"
-check "portability docs exist" \
-  test -f "$ROOT/docs/portability.md"
+check "infra USB/net launchers in zones-ui" \
+  grep -q 'bunker-infra-net' "$ROOT/modules/zones-ui.nix" && \
+  grep -q 'bunker-usb-gui' "$ROOT/modules/zones-ui.nix"
+check "bunker-term reaches net/usb" \
+  grep -q '10.0.0.1' "$ROOT/scripts/zone-term.sh" && \
+  grep -q '10.0.0.2' "$ROOT/scripts/zone-term.sh"
 check "hardware-config is stub (must replace)" \
   grep -q 'STUB' "$ROOT/hosts/bunker/hardware-configuration.nix"
 
