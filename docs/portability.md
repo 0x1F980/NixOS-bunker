@@ -1,55 +1,48 @@
 # CPU / arch portability
 #
-# Goal: same bunker repo works on **x86_64** and **aarch64** machines.
-# Reality: host and guests must share the **same ISA** (KVM). You do not run
-# aarch64 zones on an x86 host (or vice versa) except via slow TCG — we do not.
+# Same bunker repo on **AMD/Intel (x86_64)**, **ARM (aarch64)**, **RISC-V (riscv64)**.
+# Host and guests must share the **same ISA** (KVM). No cross-ISA live zones.
 
-## What the flake does
+## Matrix
 
-| Output | x86_64 | aarch64 |
-| --- | --- | --- |
-| Host | `.#host` | `.#host-aarch64` |
-| Zones (nix run) | `.#zone-net` (auto) | `.#zone-net` (auto) |
-| Guest configs | `.#net` | `.#net-aarch64` |
+| Chip | `uname -m` | Host flake | Zone packages |
+| --- | --- | --- | --- |
+| AMD / Intel | `x86_64` | `.#host` | `packages.x86_64-linux.zone-*` |
+| ARM64 | `aarch64` / `arm64` | `.#host-aarch64` | `packages.aarch64-linux.zone-*` |
+| RISC-V | `riscv64` | `.#host-riscv64` | `packages.riscv64-linux.zone-*` |
 
-`nix run .#zone-personal` picks **this machine’s** `packages.<system>` automatically.
+`nix run .#zone-personal` always picks **this machine’s** arch.
 
-## First boot (any CPU)
+## First boot
 
 ```bash
-uname -m   # x86_64 or aarch64
+bunker-first-boot   # prints the right .#host*
 sudo nixos-generate-config --show-hardware-config \
   > hosts/bunker/hardware-configuration.nix
-
-# x86_64:
-sudo nixos-rebuild switch --flake .#host
-
-# aarch64:
-sudo nixos-rebuild switch --flake .#host-aarch64
-
-bunker-zone-start net
-bunker-zone-start personal
+sudo nixos-rebuild switch --flake .#host          # or host-aarch64 / host-riscv64
+bunker-zone-start net && bunker-zone-start personal
 ```
 
-Or: `bunker-first-boot` (detects arch).
+## Requirements (every board)
 
-## Requirements (same on every board)
+1. NixOS + this flake  
+2. **KVM** (or QEMU hypervisor microvm can use)  
+3. Real hardware-config (disks/firmware) for *that* board  
+4. Patience: RISC-V/ARM may compile more from source; some apps missing in nixpkgs  
 
-1. **Linux + NixOS** (this flake)
-2. **KVM** (or equivalent hypervisor usable by QEMU/microvm)
-3. Enough RAM for host + on-demand zones
-4. Replace the hardware stub with real disks/firmware for *that* board
+## Honest limits
 
-## Not surprises — honest limits
-
-- **Not one binary for all CPUs.** Each machine builds (or substitutes) **native** closures.
-- **Cross-build** (build aarch64 on x86) needs binfmt/qemu-user or a remote aarch64 builder — optional, not required for daily use.
-- **Some apps** are arch-limited in nixpkgs (e.g. Obsidian → x86 only today). Templates skip those on ARM; use alternatives in `zones.json` `"apps"`.
-- **USB/KVM quirks** are board-specific firmware/driver issues, not bunker locking you to Intel.
+| Claim | Truth |
+| --- | --- |
+| “Runs on AMD” | Yes — x86_64 path (your current builds) |
+| “Runs on ARM” | Wired — native build on the ARM box |
+| “Runs on RISC-V” | Wired in flake — **fewer packages**; expect template/app gaps until nixpkgs catches up |
+| “One USB stick image for all CPUs” | No — each ISA builds its own closures |
+| “Proven live on your metal” | Only after `switch` + zone start on that machine |
 
 ## Check
 
 ```bash
 nix flake show
-# expect packages.x86_64-linux.zone-* AND packages.aarch64-linux.zone-*
+# expect packages.{x86_64,aarch64,riscv64}-linux.zone-*
 ```

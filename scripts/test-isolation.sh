@@ -81,8 +81,10 @@ check "flake wires x86_64 and aarch64 supportedSystems" \
   grep -q 'supportedSystems' "$ROOT/flake.nix"
 check "portability docs exist" \
   test -f "$ROOT/docs/portability.md"
-check "first-boot picks host-aarch64 on ARM" \
-  grep -q 'host-aarch64' "$ROOT/scripts/first-boot.sh"
+check "flake wires riscv64" \
+  grep -q 'riscv64-linux' "$ROOT/flake.nix"
+check "first-boot picks host-riscv64" \
+  grep -q 'host-riscv64' "$ROOT/scripts/first-boot.sh"
 check "hardware-config is stub (must replace)" \
   grep -q 'STUB' "$ROOT/hosts/bunker/hardware-configuration.nix"
 

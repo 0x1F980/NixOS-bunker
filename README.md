@@ -7,8 +7,9 @@
 
 | Machine | Host flake | Zones |
 | --- | --- | --- |
-| Intel/AMD x86_64 | `.#host` | `nix run .#zone-*` (auto) |
-| ARM aarch64 | `.#host-aarch64` | same — picks `packages.aarch64-linux` |
+| AMD / Intel x86_64 | `.#host` | `nix run .#zone-*` (auto) |
+| ARM aarch64 | `.#host-aarch64` | same |
+| RISC-V riscv64 | `.#host-riscv64` | same |
 
 Same repo. Host and guests must match the machine’s ISA (KVM). Details: [docs/portability.md](docs/portability.md).
 

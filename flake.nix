@@ -17,11 +17,35 @@
     let
       lib = nixpkgs.lib;
 
-      # Host + guests for each arch. Same machine ISA required (KVM).
+      # Native ISA + KVM on that machine. AMD/Intel = x86_64, ARM = aarch64, RISC-V = riscv64.
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"
+        "riscv64-linux"
       ];
+
+      # Flake attr for nixos-rebuild: .#host / .#host-aarch64 / .#host-riscv64
+      hostAttrName =
+        system:
+        if system == "x86_64-linux" then
+          "host"
+        else if system == "aarch64-linux" then
+          "host-aarch64"
+        else if system == "riscv64-linux" then
+          "host-riscv64"
+        else
+          "host-${system}";
+
+      hardwareOverlay =
+        system:
+        if system == "x86_64-linux" then
+          [ ./hardware/generic-x86_64.nix ]
+        else if system == "aarch64-linux" then
+          [ ./hardware/aarch64-generic.nix ]
+        else if system == "riscv64-linux" then
+          [ ./hardware/riscv64-generic.nix ]
+        else
+          [ ];
 
       appZones = import ./config/zones.nix;
 
@@ -57,7 +81,6 @@
           ++ modules;
         };
 
-      # Host does NOT embed all guest flakes (avoids building every zone into host closure).
       mkHost =
         system:
         nixpkgs.lib.nixosSystem {
@@ -77,8 +100,7 @@
               }
             )
           ]
-          ++ lib.optionals (system == "aarch64-linux") [ ./hardware/aarch64-generic.nix ]
-          ++ lib.optionals (system == "x86_64-linux") [ ./hardware/generic-x86_64.nix ];
+          ++ hardwareOverlay system;
         };
 
       mkGuests =
@@ -108,33 +130,44 @@
         }) (mkGuests system);
 
       guestsX86 = mkGuests "x86_64-linux";
-      guestsAarch64 = mkGuests "aarch64-linux";
+
+      # Non-x86 guest configs: net-aarch64, personal-riscv64, …
+      guestsPrefixed =
+        system:
+        let
+          suffix =
+            if system == "aarch64-linux" then
+              "aarch64"
+            else if system == "riscv64-linux" then
+              "riscv64"
+            else
+              system;
+        in
+        lib.mapAttrs' (name: value: {
+          name = "${name}-${suffix}";
+          inherit value;
+        }) (mkGuests system);
+
+      hostConfigs = lib.listToAttrs (
+        map (system: {
+          name = hostAttrName system;
+          value = mkHost system;
+        }) supportedSystems
+      );
 
       readmeFor =
         system:
         (mkPkgs system).writeText "bunker-readme" ''
-          Portable: x86_64-linux and aarch64-linux (native ISA + KVM).
-          Host:  nixos-rebuild switch --flake .#host          # x86_64
-                 nixos-rebuild switch --flake .#host-aarch64  # aarch64
-          Zones: nix run .#zone-<name>   # picks THIS machine's arch automatically
-          CRUD:  bunker-zone list|add|set|rm|apps|usb
+          Portable CPUs: x86_64 (AMD/Intel), aarch64 (ARM), riscv64 — native ISA + KVM each.
+          Host:  nixos-rebuild switch --flake .#${hostAttrName system}
+          Zones: nix run .#zone-<name>   # this machine's arch
+          Docs:  docs/portability.md
         '';
     in
     {
       inherit appZones;
 
-      nixosConfigurations =
-        {
-          host = mkHost "x86_64-linux";
-          host-aarch64 = mkHost "aarch64-linux";
-        }
-        # Short names = x86_64 (compat with existing docs/scripts)
-        // guestsX86
-        # Explicit aarch64 guest configs
-        // lib.mapAttrs' (name: value: {
-          name = "${name}-aarch64";
-          inherit value;
-        }) guestsAarch64;
+      nixosConfigurations = hostConfigs // guestsX86 // guestsPrefixed "aarch64-linux" // guestsPrefixed "riscv64-linux";
 
       packages = lib.genAttrs supportedSystems (
         system:

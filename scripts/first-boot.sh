@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 host_flake_attr() {
   case "$(uname -m)" in
     aarch64 | arm64) echo "host-aarch64" ;;
+    riscv64) echo "host-riscv64" ;;
     *) echo "host" ;;
   esac
 }
