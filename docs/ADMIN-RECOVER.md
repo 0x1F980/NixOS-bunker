@@ -1,42 +1,36 @@
-# Locked out of GDM / wrong password
+# Login broken / locked out
 
-## Right now (GDM accepterer ikke koden)
+## Hvis GDM afviser bunker/admin
 
-`anon` findes **ikke** efter bunker-switch. Brug kun:
+Den generation der kører nu har **tomme/låste** passwords (`initialPassword`-bug).
+Nye koder virker **først efter** `git pull` + `switch` fra en generation du *kan* bruge.
 
-| Bruger | Kode |
-| --- | --- |
-| `bunker` | `changeme-bunker` |
-| `admin` | `changeme-admin` |
-
-Hvis det stadig fejler (`initialPassword` var upålidelig — fixed med `hashedPassword`):
-
-### A — Forrige generation (hurtigst)
+### 1) Boot forrige generation (gør det nu)
 
 1. Genstart  
-2. I **systemd-boot**: vælg en **ældre** NixOS-generation (før bunker)  
-3. Log ind som `anon` med dit gamle kodeord  
-4. Så:
-   ```bash
-   cd ~/nixos-bunker
-   git pull
-   sudo nixos-rebuild switch --flake .#host
-   ```
-5. Log ind som **`bunker` / `changeme-bunker`**
+2. systemd-boot-menu → **ældre NixOS** (før bunker / hvor `anon` findes)  
+3. Log ind som **`anon`** (dit gamle kodeord)
 
-### B — TTY
-
-Ctrl+Alt+F3 → `admin` / `changeme-admin` (eller `bunker`).  
-Virker TTY men ikke GDM = session-problem, ikke kode.
-
-### C — Live ISO / nixos-enter
-
-Se tidligere: mount LUKS, `nixos-enter`, sæt `hashedPassword` eller `passwd` efter midlertidig `mutableUsers`.
-
-## Efter unlock
+### 2) Aktivér login-fix
 
 ```bash
-passwd   # som bunker / admin — skift defaults
+cd ~/nixos-bunker
+git pull
+sudo nixos-rebuild switch --flake .#host
 ```
 
-`bunker` har **ikke** wheel (med vilje). Rebuild = `admin`.
+### 3) Log ind (efter switch)
+
+| Hvor | Bruger | Kode |
+| --- | --- | --- |
+| GDM | `bunker` | `bunker` |
+| GDM | `admin` | `admin` |
+| Ctrl+Alt+F2 | `root` | `admin` |
+| TTY1 | `admin` | **autologin** (ingen kode) |
+
+Skift bagefter: `passwd` — og fjern root-hash + `services.getty.autologinUser` i `modules/host-minimal.nix`.
+
+### Uden git (manuel)
+
+Som `anon` på gammel generation, ret `~/nixos-bunker/modules/host-minimal.nix`:
+sæt `hashedPassword` for bunker/admin (se git `623fcb0` / nyere), så `sudo nixos-rebuild switch --flake .#host`.

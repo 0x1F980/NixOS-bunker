@@ -16,8 +16,10 @@
 
   users.mutableUsers = false;
 
-  # Use hashedPassword (not initialPassword) — GDM/login is reliable across rebuilds.
-  # Defaults: bunker/changeme-bunker  admin/changeme-admin  — change after first login.
+  # Plainwords (ASCII only — GDM/keyboard-safe). Change after first login: passwd
+  #   bunker / bunker
+  #   admin  / admin
+  #   root   / admin   (TTY emergency; remove later)
   users.users.bunker = {
     isNormalUser = true;
     description = "Bunker daily operator (no root)";
@@ -27,7 +29,7 @@
       "audio"
       "input"
     ];
-    hashedPassword = "$6$hPl9L1jpKqoGQcuU$XHa1LQobm2/kOJcXLmyheR20Yif5edZmSwyQxl9GAjcWCGBCdqRyHUgldIQOm4u3ipCgNt/AWxgOJMRHd8r5U/";
+    hashedPassword = "$6$rUWh1MatsoP3pIEp$lCI5G0SE5Gvip8gDu5tYLax2FMFYw0IAyq4fTPYpCeeRMGK32IbgLWZdMXPhJPm3/yPQxYQc7KyE4h2EV67tW/";
   };
 
   users.users.admin = {
@@ -37,8 +39,15 @@
       "wheel"
       "networkmanager"
     ];
-    hashedPassword = "$6$wHkXg74LhSGhNPbw$grmctRAXHo0aWWlEjteDEfeq1CzvpzFueFJOB.F2aoOudsNKuIdT37szlZ8eFbt0.t/8Zn/O/BlyOCoLrx6KI0";
+    hashedPassword = "$6$SLamUKVV.Ht9pdyf$Wf96/D4CFCrnwFeA/DvhtbEC300Rub3rjuKmAuXqHqaDEb5m7vtCft6DQbagyk/qvmwLTFJgmARGqxWI2bE3q1";
   };
+
+  # Emergency: root on Ctrl+Alt+F2..F6 (password: admin)
+  users.users.root.hashedPassword = "$6$SLamUKVV.Ht9pdyf$Wf96/D4CFCrnwFeA/DvhtbEC300Rub3rjuKmAuXqHqaDEb5m7vtCft6DQbagyk/qvmwLTFJgmARGqxWI2bE3q1";
+
+  # Emergency: TTY1 auto-login as admin (no password) until you disable this
+  services.getty.autologinUser = "admin";
+
 
   security.sudo.wheelNeedsPassword = true;
   security.polkit.enable = true;
