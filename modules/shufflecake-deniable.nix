@@ -40,8 +40,7 @@ in
 
   environment.systemPackages =
     [
-      # srm(1) — attr was renamed; secure-delete does not exist in nixpkgs
-      (pkgs.thc-secure-delete or pkgs.srm)
+      pkgs.srm
       pkgs.openssl
       pkgs.jq
     ]
