@@ -21,7 +21,7 @@ let
   qubeType =
     zone:
     let
-      k = zone.kind or null;
+      k = zone.kind or "appvm";
       disp = zone.disposable or false;
       iso = (zone.template or "") == "iso" || ((zone.iso or "") != "");
     in
@@ -29,10 +29,8 @@ let
       "template"
     else if disp || k == "disposable" then
       "disposable"
-    else if iso then
-      "appvm"
     else
-      (k or "appvm");
+      "appvm";
 
   mkIcon =
     name: colorName:
