@@ -1,36 +1,35 @@
-# Login broken / locked out
+# Login / SSH recover
 
-## Hvis GDM afviser bunker/admin
+## Passwords (after this flake switch)
 
-Den generation der kører nu har **tomme/låste** passwords (`initialPassword`-bug).
-Nye koder virker **først efter** `git pull` + `switch` fra en generation du *kan* bruge.
+| Bruger | Kode |
+| --- | --- |
+| `bunker` | `changeme-bunker` |
+| `admin` | `changeme-admin` |
+| `root` | `changeme-admin` |
 
-### 1) Boot forrige generation (gør det nu)
+Skift bagefter: `passwd`.
 
-1. Genstart  
-2. systemd-boot-menu → **ældre NixOS** (før bunker / hvor `anon` findes)  
-3. Log ind som **`anon`** (dit gamle kodeord)
+## SSH (`sshd.service`)
 
-### 2) Aktivér login-fix
+Flake host **enabler** OpenSSH. Efter switch skal unit findes:
 
 ```bash
-cd ~/nixos-bunker
-git pull
+cd /path/to/NixOS-bunker
 sudo nixos-rebuild switch --flake .#host
+systemctl status sshd
+ss -lptn | grep ':22'
 ```
 
-### 3) Log ind (efter switch)
+Login udefra:
 
-| Hvor | Bruger | Kode |
-| --- | --- | --- |
-| GDM | `bunker` | `bunker` |
-| GDM | `admin` | `admin` |
-| Ctrl+Alt+F2 | `root` | `admin` |
-| TTY1 | `admin` | **autologin** (ingen kode) |
+```bash
+ssh bunker@10.118.58.245
+# password: changeme-bunker
+```
 
-Skift bagefter: `passwd` — og fjern root-hash + `services.getty.autologinUser` i `modules/host-minimal.nix`.
+## Hvis du er låst ude
 
-### Uden git (manuel)
-
-Som `anon` på gammel generation, ret `~/nixos-bunker/modules/host-minimal.nix`:
-sæt `hashedPassword` for bunker/admin (se git `623fcb0` / nyere), så `sudo nixos-rebuild switch --flake .#host`.
+1. Boot ældre NixOS-generation  
+2. `git pull` i repoet  
+3. `sudo nixos-rebuild switch --flake .#host`

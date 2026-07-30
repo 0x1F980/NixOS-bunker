@@ -18,7 +18,8 @@
 
   services.avahi.enable = false;
   services.printing.enable = false;
-  services.openssh.enable = false;
+  # SSH: host decides (see hosts/bunker/configuration.nix). Do NOT disable here —
+  # a plain `enable = false` fought operators who expected sshd after flake switch.
   hardware.bluetooth.enable = false;
 
   programs.firejail.enable = true;

@@ -73,7 +73,10 @@ in
 
   users.mutableUsers = false;
 
-  # bunker/bunker  admin/admin  root/admin — change with passwd
+  # Defaults after flake switch (change with passwd):
+  #   bunker / changeme-bunker
+  #   admin  / changeme-admin
+  #   root   / changeme-admin
   users.users.bunker = {
     isNormalUser = true;
     description = "Bunker daily operator (no root)";
@@ -83,7 +86,7 @@ in
       "audio"
       "input"
     ];
-    hashedPassword = "$6$rUWh1MatsoP3pIEp$lCI5G0SE5Gvip8gDu5tYLax2FMFYw0IAyq4fTPYpCeeRMGK32IbgLWZdMXPhJPm3/yPQxYQc7KyE4h2EV67tW/";
+    hashedPassword = "$6$yobMn1FbbF3w0BBL$hENazauAiBWxmQ7g.k2ci8RuFr5NKtk.qHC/2AM1YkDFATF2xCI8JvRXNxkS2a.BjqwzUpIODvqcAjQzaTwRt0";
   };
 
   users.users.admin = {
@@ -93,10 +96,10 @@ in
       "wheel"
       "networkmanager"
     ];
-    hashedPassword = "$6$SLamUKVV.Ht9pdyf$Wf96/D4CFCrnwFeA/DvhtbEC300Rub3rjuKmAuXqHqaDEb5m7vtCft6DQbagyk/qvmwLTFJgmARGqxWI2bE3q1";
+    hashedPassword = "$6$byfl3va1hI3gFNNW$8jBB1q/8Iu2nYdQZCLtdAZt/qoBM9MoS.SJRAdr8eTOmYyhTuxu7g4l7e/en6yhE1NyuJ8Tl9lhjT54gWKg6d0";
   };
 
-  users.users.root.hashedPassword = "$6$SLamUKVV.Ht9pdyf$Wf96/D4CFCrnwFeA/DvhtbEC300Rub3rjuKmAuXqHqaDEb5m7vtCft6DQbagyk/qvmwLTFJgmARGqxWI2bE3q1";
+  users.users.root.hashedPassword = "$6$byfl3va1hI3gFNNW$8jBB1q/8Iu2nYdQZCLtdAZt/qoBM9MoS.SJRAdr8eTOmYyhTuxu7g4l7e/en6yhE1NyuJ8Tl9lhjT54gWKg6d0";
 
   # Drop emergency autologin now that login works
   # services.getty.autologinUser = "admin";

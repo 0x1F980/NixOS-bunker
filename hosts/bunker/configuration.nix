@@ -29,11 +29,17 @@
     "interface-name:vm-*"
   ];
   networking.firewall.enable = true;
-  # Operator SSH (hardening-portable disables it by default)
-  services.openssh.enable = lib.mkForce true;
-  services.openssh.settings.PasswordAuthentication = true;
-  services.openssh.settings.PermitRootLogin = "no";
-  networking.firewall.allowedTCPPorts = [ 22 ];
+  # Operator SSH — must create sshd.service (password login for bunker/admin)
+  services.openssh = {
+    enable = true;
+    openFirewall = true;
+    settings = {
+      PasswordAuthentication = true;
+      KbdInteractiveAuthentication = true;
+      PermitRootLogin = "prohibit-password";
+    };
+  };
+  networking.firewall.allowedTCPPorts = lib.mkAfter [ 22 ];
 
   time.timeZone = "Europe/Copenhagen";
   i18n.defaultLocale = "da_DK.UTF-8";
