@@ -1,40 +1,26 @@
-.\" Manpage for NixOS-bunker
 .TH BUNKER 1 "July 2026" "nixos-bunker" "NixOS-bunker Manual"
 .SH NAME
-bunker \- hardened microVM workstation operator
+bunker \- hardened microVM workstation
 .SH SYNOPSIS
 .B bunker
 .br
 .B bunker-zone
-.RI [ list | add | set | rm | \&.\&.\&. ]
+.RI [ list | add | set | rm ]
 .br
 .B bunker-zone-start
 .IR zone
-.br
-.B bunker-sflc
-.RI [ unlock | lock | status ]
-.br
-.B bunker-panic
 .SH DESCRIPTION
-Host GNOME is a thin shell. Apps run in microVM
-.BR zones .
-Brokers:
-.BR net ,
-.BR usb ,
-.BR voice .
-One TUI:
-.BR bunker .
-.SH FILES
-.I config/zones.json
-— source of truth (
+Thin GNOME host. Apps in microVM zones. Brokers: net (Tor), usb.
+Operator UI:
+.BR bunker
+(ratatui). Fields:
 .BR apps[] ,
 .BR mem ,
-.BR diskGb ,
 .BR invisible ,
 .BR layer ,
-.BR panic ).
+.B panic
+(keep|lock|wipe).
 .SH SEE ALSO
 .IR docs/deniable.md ,
 .IR docs/egress.md ,
-.IR docs/usb.md ,
-.IR docs/ADMIN-RECOVER.md
+.IR docs/usb.md

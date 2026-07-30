@@ -1,10 +1,7 @@
-# Emit zone registry onto the host (/etc/bunker/zones.json + .tsv).
-# Invisible zones (invisible=true) stay in zones.json; GNOME hides until sflc unlock.
-# Egress backends: see docs/egress.md (Nym/i2p/Tor run in netVM only).
+# Zone registry on host (/etc/bunker/zones.json + .tsv).
 {
   lib,
   bunkerPublicZones ? import ../config/zones.nix,
-  bunkerAppZones ? bunkerPublicZones,
   ...
 }:
 
@@ -22,7 +19,6 @@
             "disposable"
           else
             "persistent";
-        iso = z.iso or "";
       in
       lib.concatStringsSep "\t" [
         name
@@ -31,10 +27,9 @@
         (if (z.socks or null) == null then "-" else toString z.socks)
         typ
         (z.color or "gray")
-        (z.internet or "nym")
+        (z.internet or "tor")
         (lib.concatStringsSep "," (z.usb or [ ]))
         (lib.concatStringsSep "," (z.apps or [ ]))
-        iso
       ]
     ) bunkerPublicZones
   );

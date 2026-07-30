@@ -1,25 +1,13 @@
-# Template: browser — minimal ephemeral browsing stack
+# Browser disposable — LibreWolf + mat2.
 { pkgs, ... }:
 
 {
   environment.systemPackages = with pkgs; [
     librewolf
-    libreoffice
     bleachbit
-    firejail
-    bubblewrap
+    mat2
     wl-clipboard
+    (writeShellScriptBin "bunker-mat" ''exec ${mat2}/bin/mat2 --inplace "$@"'')
   ];
-
-  programs.firejail = {
-    enable = true;
-    wrappedBinaries = {
-      librewolf = {
-        executable = "${pkgs.librewolf}/bin/librewolf";
-        profile = "${pkgs.firejail}/etc/firejail/librewolf.profile";
-      };
-    };
-  };
-
   systemd.coredump.enable = false;
 }

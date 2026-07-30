@@ -1,79 +1,52 @@
-# Shared helpers for bunker operator scripts (usb / clipboard / zone-term / bunker-zone).
-# Source:  # shellcheck source=lib-common.sh
-#          source "$(dirname "$0")/lib-common.sh"
+# Shared helpers for bunker scripts.
+bunker_repo_root() { cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd; }
 
-bunker_repo_root() {
-  cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd
-}
-
-# Resolve zones.json: BUNKER_ZONES_JSON → checkout → ~/nixos-bunker → /etc/bunker
 bunker_zones_json() {
-  if [[ -n "${BUNKER_ZONES_JSON:-}" && -f "${BUNKER_ZONES_JSON}" ]]; then
-    echo "$BUNKER_ZONES_JSON"
-    return
-  fi
-  local root="${BUNKER_ROOT:-$(bunker_repo_root)}"
-  local p
-  for p in "$root/config/zones.json" "$HOME/NixOS-bunker/config/zones.json" "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
-    if [[ -f "$p" ]]; then
-      echo "$p"
-      return
-    fi
+  [[ -n ${BUNKER_ZONES_JSON:-} && -f $BUNKER_ZONES_JSON ]] && { echo "$BUNKER_ZONES_JSON"; return; }
+  local root=${BUNKER_ROOT:-$(bunker_repo_root)} p
+  for p in "$root/config/zones.json" "$HOME/NixOS-bunker/config/zones.json" /etc/bunker/zones.json; do
+    [[ -f $p ]] && { echo "$p"; return; }
   done
   echo "$root/config/zones.json"
 }
 
-# net/usb fixed; vault empty; else zones.json ip. No legacy aliases.
 bunker_zone_ip() {
-  local name="$1"
-  case "$name" in
-    net) echo 10.0.0.1; return ;;
-    usb) echo 10.0.0.2; return ;;
-    voice) echo 10.0.0.3; return ;;
-    vault) echo ""; return ;;
-  esac
-  local zj
-  zj="$(bunker_zones_json)"
-  [[ -f "$zj" ]] || {
-    echo ""
-    return
-  }
-  python3 -c "import json;z=json.load(open('$zj'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null || echo ""
+  case "$1" in net) echo 10.0.0.1; return;; usb) echo 10.0.0.2; return;; esac
+  python3 -c "import json;print(json.load(open('$(bunker_zones_json)')).get('$1',{}).get('ip',''))" 2>/dev/null || echo
 }
 
-# True if zone is an ISO/HVM guest (template=iso or iso= path set).
 bunker_zone_is_iso() {
-  local name="$1" zj
-  zj="$(bunker_zones_json)"
-  [[ -f "$zj" ]] || return 1
   python3 -c "
-import json, sys
-z=json.load(open('$zj')).get('$name') or {}
-iso=(z.get('iso') or '').strip()
-tmpl=(z.get('template') or '')
-sys.exit(0 if tmpl=='iso' or bool(iso) else 1)
+import json,sys
+z=json.load(open('$(bunker_zones_json)')).get('$1') or {}
+sys.exit(0 if (z.get('template')=='iso' or bool((z.get('iso') or '').strip())) else 1)
 " 2>/dev/null
 }
 
-# SSH into zone@IP. Optional leading ssh flags (e.g. -t) before IP.
-#   bunker_ssh_zone 10.0.0.11 'uname -a'
-#   bunker_ssh_zone -t 10.0.0.11 'bash -l'
+bunker_qmp_sock() {
+  local vm=$1 cand
+  for cand in "/run/microvm/${vm}.sock" "/var/lib/microvms/$vm/sock" "/var/lib/microvms/$vm/qemu.sock"; do
+    [[ -S $cand ]] && { echo "$cand"; return 0; }
+  done
+  return 1
+}
+
+bunker_qmp() {
+  local sock=$1 cmd=$2
+  { sleep 0.05; printf '%s\n' '{"execute":"qmp_capabilities"}'; sleep 0.05; printf '%s\n' "$cmd"; } | socat - UNIX-CONNECT:"$sock"
+}
+
 bunker_ssh_zone() {
   local extra=()
-  while [[ "${1:-}" == -* ]]; do
-    extra+=("$1")
-    shift
-  done
-  local ip="${1:?ip}"
-  shift
-  local pass="${BUNKER_ZONE_PASS:-zone}"
-  local ssh_opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8)
-  if [[ -n "${BUNKER_ZONE_SSH_KEY:-}" && -f "${BUNKER_ZONE_SSH_KEY}" ]]; then
-    ssh "${extra[@]}" -i "$BUNKER_ZONE_SSH_KEY" "${ssh_opts[@]}" "zone@${ip}" "$@"
-  elif command -v sshpass >/dev/null 2>&1; then
-    sshpass -p "$pass" ssh "${extra[@]}" "${ssh_opts[@]}" -o PreferredAuthentications=password \
-      -o PubkeyAuthentication=no "zone@${ip}" "$@"
+  while [[ ${1:-} == -* ]]; do extra+=("$1"); shift; done
+  local ip=${1:?}; shift
+  local pass=${BUNKER_ZONE_PASS:-zone}
+  local opts=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=8)
+  if [[ -n ${BUNKER_ZONE_SSH_KEY:-} && -f $BUNKER_ZONE_SSH_KEY ]]; then
+    ssh "${extra[@]}" -i "$BUNKER_ZONE_SSH_KEY" "${opts[@]}" "zone@$ip" "$@"
+  elif command -v sshpass >/dev/null; then
+    sshpass -p "$pass" ssh "${extra[@]}" "${opts[@]}" -o PreferredAuthentications=password -o PubkeyAuthentication=no "zone@$ip" "$@"
   else
-    ssh "${extra[@]}" "${ssh_opts[@]}" "zone@${ip}" "$@"
+    ssh "${extra[@]}" "${opts[@]}" "zone@$ip" "$@"
   fi
 }

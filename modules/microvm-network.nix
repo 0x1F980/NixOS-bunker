@@ -1,8 +1,5 @@
-# Host-side microVM network: bridge br-bunker (10.0.0.254/24).
-# Guests use type=bridge → br-bunker (microvm.nix attaches taps).
-# netVM is 10.0.0.1 (gateway + SOCKS for app VMs). Host is .254 for management.
+# Host bridge br-bunker (10.0.0.254/24). netVM=.1 usb=.2
 {
-  config,
   lib,
   pkgs,
   bunkerAppZones ? import ../config/zones.nix,
@@ -10,33 +7,28 @@
 }:
 
 let
-  appTapNames = lib.mapAttrsToList (name: _: "vm-${name}") bunkerAppZones;
   tapNames = [
     "vm-net"
     "vm-usb"
-    "vm-voice"
   ]
-  ++ appTapNames;
+  ++ lib.mapAttrsToList (name: _: "vm-${name}") bunkerAppZones;
 in
 {
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
-
   networking.bridges.br-bunker.interfaces = [ ];
-
   networking.interfaces.br-bunker.ipv4.addresses = [
     {
       address = "10.0.0.254";
       prefixLength = 24;
     }
   ];
-
   networking.networkmanager.unmanaged = [
     "interface-name:br-bunker"
     "interface-name:vm-*"
   ];
 
   systemd.services.bunker-bridge-up = {
-    description = "Bring up br-bunker for microVM LAN";
+    description = "Bring up br-bunker";
     after = [ "network-pre.target" ];
     before = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
@@ -53,7 +45,7 @@ in
   };
 
   systemd.services.bunker-bridge-attach = {
-    description = "Attach bunker microVM taps to br-bunker";
+    description = "Attach microVM taps to br-bunker";
     after = [
       "bunker-bridge-up.service"
       "network-online.target"
@@ -80,14 +72,9 @@ in
   };
 
   environment.etc."bunker/network".text = ''
-    Bridge: br-bunker 10.0.0.254/24
-    netVM:  10.0.0.1   (gateway + Nym/DNS; WAN via user-net)
-    App zones: see /etc/bunker/zones.tsv (from config/zones.nix)
-    vault: no NIC
-    usb:   10.0.0.2
-
-    App VMs must NOT NAT to clearnet on the host. Use bunker-killswitch enable.
-    Only vm-net may forward to WAN.
+    br-bunker 10.0.0.254/24
+    netVM 10.0.0.1 (Tor SOCKS + DNS)
+    usbVM 10.0.0.2
   '';
 
   networking.firewall.extraCommands = lib.mkAfter ''

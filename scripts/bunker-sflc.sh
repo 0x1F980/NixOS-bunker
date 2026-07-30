@@ -1,280 +1,192 @@
 #!/usr/bin/env bash
-# Shufflecake deniable layers: unlock/lock whole zone-VMs; refresh GNOME visibility.
-# Usage:
-#   bunker-sflc status
-#   bunker-sflc unlock <layer>          # reads passphrase from stdin
-#   bunker-sflc lock <layer|all>
-#   bunker-sflc sync-visible            # rewrite /run/bunker/visible-zones.json + XDG launchers
-#   bunker-sflc path <zone>             # print microvm data dir when unlocked
+# Invisible zones: unlock/lock Shufflecake layers + GNOME launchers.
+# Usage: bunker-sflc status|unlock <n>|lock [n|all]|unlock-zone <name>|lock-zone <name>|sync|path <zone>
 set -euo pipefail
-
 # shellcheck source=lib-common.sh
 source "$(dirname "$0")/lib-common.sh"
 # shellcheck source=lib-shufflecake.sh
 source "$(dirname "$0")/lib-shufflecake.sh"
 
-ensure_runtime() {
+ensure() {
   mkdir -p /run/bunker/xdg/applications "$(bunker_sflc_mount_root)" /var/lib/bunker/sflc-keys
   chmod 700 /var/lib/bunker/sflc-keys 2>/dev/null || true
   touch "$(bunker_unlocked_layers_file)" 2>/dev/null || true
 }
-
-layer_dir() {
-  echo "$(bunker_sflc_mount_root)/layer$1"
+ldir() { echo "$(bunker_sflc_mount_root)/layer$1"; }
+unlocked() { grep -qx "$1" "$(bunker_unlocked_layers_file)" 2>/dev/null; }
+mark() { ensure; unlocked "$1" || echo "$1" >>"$(bunker_unlocked_layers_file)"; }
+unmark() {
+  local f; f="$(bunker_unlocked_layers_file)"
+  [[ -f $f ]] || return 0
+  grep -vx "$1" "$f" >"$f.tmp" 2>/dev/null || true; mv "$f.tmp" "$f"
 }
 
-is_unlocked() {
-  local layer="$1"
-  [[ -f "$(bunker_unlocked_layers_file)" ]] || return 1
-  grep -qx "$layer" "$(bunker_unlocked_layers_file)" 2>/dev/null
-}
-
-mark_unlocked() {
-  local layer="$1"
-  ensure_runtime
-  grep -qx "$layer" "$(bunker_unlocked_layers_file)" 2>/dev/null || echo "$layer" >>"$(bunker_unlocked_layers_file)"
-}
-
-unmark_unlocked() {
-  local layer="$1"
-  local f
-  f="$(bunker_unlocked_layers_file)"
-  [[ -f "$f" ]] || return 0
-  grep -vx "$layer" "$f" >"$f.tmp" 2>/dev/null || true
-  mv "$f.tmp" "$f"
-}
-
-cmd_status() {
-  ensure_runtime
-  echo "mode=$(bunker_sflc_mode) device=$(bunker_sflc_device) mount=$(bunker_sflc_mount_root)"
-  echo "zones=$(bunker_deniable_json)"
-  echo -n "unlocked_layers: "
-  if [[ -s "$(bunker_unlocked_layers_file)" ]]; then
-    tr '\n' ' ' <"$(bunker_unlocked_layers_file)"
-    echo
-  else
-    echo "(none)"
-  fi
-  echo "visible: $(bunker_visible_zones_file)"
-  [[ -f "$(bunker_visible_zones_file)" ]] && cat "$(bunker_visible_zones_file)" || echo "[]"
-}
-
-# Link /var/lib/microvms/<zone> -> layer dir when unlocked
-link_zone() {
-  local name="$1" layer="$2"
-  local dest src
-  dest="/var/lib/microvms/${name}"
-  src="$(layer_dir "$layer")/microvms/${name}"
-  mkdir -p "$src"
-  mkdir -p /var/lib/microvms
-  if [[ -L "$dest" ]]; then
-    rm -f "$dest"
-  elif [[ -d "$dest" && ! -L "$dest" ]]; then
-    echo "WARN: $dest exists as real dir — not replacing (move aside manually)" >&2
-    return 0
-  fi
-  ln -sfn "$src" "$dest"
-}
-
-unlink_zone() {
-  local name="$1"
-  local dest="/var/lib/microvms/${name}"
-  if [[ -L "$dest" ]]; then
-    rm -f "$dest"
-  fi
-}
-
-cmd_unlock() {
-  local layer="${1:?layer}"
-  local pass mode device
-  ensure_runtime
-  if ! [[ "$layer" =~ ^[0-9]+$ ]]; then
-    echo "layer must be integer" >&2
-    exit 1
-  fi
-  if is_unlocked "$layer"; then
-    echo "layer $layer already unlocked"
-    cmd_sync_visible
-    return 0
-  fi
-  # passphrase from stdin (one line)
-  IFS= read -r pass || true
-  [[ -n "${pass:-}" ]] || {
-    echo "passphrase required on stdin" >&2
-    exit 1
-  }
-  mode="$(bunker_sflc_mode)"
-  device="$(bunker_sflc_device)"
-  mkdir -p "$(layer_dir "$layer")/microvms"
-  if [[ "$mode" == "shufflecake" ]]; then
-    if [[ -z "$device" ]]; then
-      echo "ERROR: shufflecake mode needs device in shufflecake.json" >&2
-      exit 1
-    fi
-    # Best-effort non-interactive open (CLI may vary by version)
-    if printf '%s\n' "$pass" | shufflecake open "$device" 2>/dev/null; then
-      true
-    elif printf '%s\n' "$pass" | shufflecake open --device "$device" 2>/dev/null; then
-      true
-    else
-      echo "WARN: shufflecake open failed — falling back to stub layer dir (configure device/CLI)" >&2
-    fi
-  else
-    # Stub: derive cookie into RAM-backed run only (not durable key material)
-    printf '%s' "$pass" | sha256sum | awk '{print $1}' >"/run/bunker/layer-${layer}.cookie"
-    chmod 600 "/run/bunker/layer-${layer}.cookie"
-  fi
-  # Never store plaintext passphrase
-  unset pass
-  mark_unlocked "$layer"
-  # Link invisible zones on this layer
-  python3 - "$(bunker_deniable_json)" "$layer" <<'PY' | while read -r name; do
-import json, sys
-z = json.load(open(sys.argv[1]))
-layer = int(sys.argv[2])
-for name, c in z.items():
-    if not c.get("invisible"):
-        continue
-    try:
-        if int(c.get("layer") or -1) == layer:
-            print(name)
-    except (TypeError, ValueError):
-        pass
+zones_on_layer() {
+  # all invisible, or those on layer $1
+  LAYER="${1:-}" python3 - "$(bunker_deniable_json)" <<'PY'
+import json,os,sys
+z=json.load(open(sys.argv[1])); L=os.environ.get("LAYER") or ""
+for n,c in z.items():
+  if not c.get("invisible"): continue
+  if L and str(c.get("layer") or "")!=L: continue
+  print(n)
 PY
-    link_zone "$name" "$layer"
-  done
-  cmd_sync_visible
-  echo "OK: unlocked layer $layer"
 }
 
-cmd_lock() {
-  local layer="${1:-all}"
-  ensure_runtime
-  local names
-  if [[ "$layer" == "all" ]]; then
-    names="$(python3 - "$(bunker_deniable_json)" <<'PY'
-import json, sys
-z = json.load(open(sys.argv[1]))
-for name, c in z.items():
-    if c.get("invisible"):
-        print(name)
+link_z() {
+  local n=$1 L=$2 d=/var/lib/microvms/$n s; s="$(ldir "$L")/microvms/$n"
+  mkdir -p "$s" /var/lib/microvms
+  if [[ -L $d ]]; then rm -f "$d"
+  elif [[ -d $d ]]; then echo "WARN: $d real dir" >&2; return 0; fi
+  ln -sfn "$s" "$d"
+}
+unlink_z() { [[ -L /var/lib/microvms/$1 ]] && rm -f "/var/lib/microvms/$1"; }
+
+sync_vis() {
+  ensure
+  local unlocked vis
+  unlocked="$(tr '\n' ',' <"$(bunker_unlocked_layers_file)" 2>/dev/null || true)"
+  vis="$(UNLOCKED=$unlocked python3 - "$(bunker_deniable_json)" <<'PY'
+import json,os,sys
+z=json.load(open(sys.argv[1]))
+u={x for x in os.environ.get("UNLOCKED","").split(",") if x}
+print(json.dumps([n for n,c in sorted(z.items()) if c.get("invisible") and str(c.get("layer") or "") in u]))
 PY
 )"
-    while read -r name; do
-      [[ -z "$name" ]] && continue
-      systemctl stop "microvm@${name}.service" 2>/dev/null || true
-      unlink_zone "$name"
-    done <<<"$names"
-    : >"$(bunker_unlocked_layers_file)"
-    rm -f /run/bunker/layer-*.cookie
-    if command -v shufflecake >/dev/null 2>&1 && [[ -n "$(bunker_sflc_device)" ]]; then
-      shufflecake close "$(bunker_sflc_device)" 2>/dev/null || shufflecake close 2>/dev/null || true
-    fi
-  else
-    names="$(python3 - "$(bunker_deniable_json)" "$layer" <<'PY'
-import json, sys
-z = json.load(open(sys.argv[1]))
-layer = int(sys.argv[2])
-for name, c in z.items():
-    if not c.get("invisible"):
-        continue
-    try:
-        if int(c.get("layer") or -1) == layer:
-            print(name)
-    except (TypeError, ValueError):
-        pass
-PY
-)"
-    while read -r name; do
-      [[ -z "$name" ]] && continue
-      systemctl stop "microvm@${name}.service" 2>/dev/null || true
-      unlink_zone "$name"
-    done <<<"$names"
-    unmark_unlocked "$layer"
-    rm -f "/run/bunker/layer-${layer}.cookie"
-  fi
-  cmd_sync_visible
-  echo "OK: locked $layer"
-}
-
-write_desktop() {
-  local name="$1" typ="$2"
-  local desk="/run/bunker/xdg/applications/qube-invisible-${name}.desktop"
-  cat >"$desk" <<EOF
+  printf '%s\n' "$vis" >"$(bunker_visible_zones_file)"
+  rm -f /run/bunker/xdg/applications/qube-invisible-*.desktop
+  python3 -c "import json;print('\n'.join(json.load(open('$(bunker_visible_zones_file)'))))" | while read -r n; do
+    [[ -z $n ]] && continue
+    cat >"/run/bunker/xdg/applications/qube-invisible-${n}.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=${name} · ${typ}
-Exec=bunker-zone-start ${name}
+Name=${n}
+Exec=bunker-zone-start ${n}
 Icon=applications-system
 Categories=X-Qube-AppVM;System
 Terminal=false
 EOF
-}
-
-cmd_sync_visible() {
-  ensure_runtime
-  local visible_json unlocked
-  unlocked="$(tr '\n' ',' <"$(bunker_unlocked_layers_file)" 2>/dev/null || true)"
-  visible_json="$(
-    UNLOCKED="$unlocked" python3 - "$(bunker_deniable_json)" <<'PY'
-import json, os, sys
-z = json.load(open(sys.argv[1]))
-unlocked = {x for x in os.environ.get("UNLOCKED", "").split(",") if x != ""}
-out = []
-for name, c in sorted(z.items()):
-    if not c.get("invisible"):
-        continue
-    layer = str(c.get("layer") or "")
-    if layer in unlocked:
-        out.append(name)
-print(json.dumps(out))
-PY
-  )"
-  printf '%s\n' "$visible_json" >"$(bunker_visible_zones_file)"
-  rm -f /run/bunker/xdg/applications/qube-invisible-*.desktop
-  python3 - "$(bunker_deniable_json)" "$(bunker_visible_zones_file)" <<'PY' | while IFS=$'\t' read -r name typ; do
-import json, sys
-z = json.load(open(sys.argv[1]))
-vis = set(json.load(open(sys.argv[2])))
-for name in sorted(vis):
-    c = z.get(name, {})
-    typ = c.get("kind") or ("disposable" if c.get("disposable") else "appvm")
-    print(f"{name}\t{typ}")
-PY
-    write_desktop "$name" "$typ"
   done
-  echo "visible invisible-zones: $visible_json"
+  echo "visible: $vis"
 }
 
-cmd_path() {
-  local name="${1:?zone}"
-  python3 - "$(bunker_deniable_json)" "$name" <<'PY'
-import json, sys
-z = json.load(open(sys.argv[1]))
-n = sys.argv[2]
-if n not in z or not z[n].get("invisible"):
-    raise SystemExit(f"unknown invisible zone: {n}")
-print(z[n].get("layer") or "")
+
+zone_layer() {
+  NAME="${1:?}" python3 - "$(bunker_deniable_json)" <<'PY'
+import json,sys,os
+z=json.load(open(sys.argv[1])); n=os.environ["NAME"]
+c=z.get(n) or {}
+assert c.get("invisible"), n
+print(c.get("layer") or "")
 PY
 }
 
-main() {
-  local cmd="${1:-status}"
-  shift || true
-  case "$cmd" in
-    status) cmd_status ;;
-    unlock) cmd_unlock "$@" ;;
-    lock) cmd_lock "$@" ;;
-    sync-visible | sync) cmd_sync_visible ;;
-    path) cmd_path "$@" ;;
-    -h | --help)
-      sed -n '2,10p' "$0" | sed 's/^# //'
-      ;;
-    *)
-      echo "unknown: $cmd" >&2
-      exit 1
-      ;;
-  esac
+zone_hide_hash() {
+  NAME="${1:?}" python3 - "$(bunker_deniable_json)" <<'PY'
+import json,sys,os
+z=json.load(open(sys.argv[1])); n=os.environ["NAME"]
+print((z.get(n) or {}).get("hideHash") or "")
+PY
 }
 
-main "$@"
+verify_zone_pass() {
+  # $1 zone, passphrase on stdin — checks hideHash if set
+  local n=$1 want got
+  want="$(zone_hide_hash "$n")"
+  IFS= read -r pass || true
+  [[ -n ${pass:-} ]] || { echo "passphrase on stdin" >&2; return 1; }
+  if [[ -n $want ]]; then
+    got="$(printf '%s' "$pass" | sha256sum | awk '{print $1}')"
+    [[ $got == "$want" ]] || { echo "denied: wrong passphrase for zone $n" >&2; unset pass; return 1; }
+  fi
+  printf '%s\n' "$pass"
+  unset pass
+}
+
+cmd="${1:-status}"; shift || true
+case "$cmd" in
+  status)
+    ensure
+    echo "mode=$(bunker_sflc_mode) device=$(bunker_sflc_device)"
+    echo -n "unlocked: "; tr '\n' ' ' <"$(bunker_unlocked_layers_file)" 2>/dev/null; echo
+    cat "$(bunker_visible_zones_file)" 2>/dev/null || echo "[]"
+    ;;
+  unlock)
+    L="${1:?layer}"; ensure
+    [[ $L =~ ^[0-9]+$ ]] || { echo "layer int"; exit 1; }
+    if unlocked "$L"; then echo "already"; sync_vis; exit 0; fi
+    IFS= read -r pass || true
+    [[ -n ${pass:-} ]] || { echo "passphrase on stdin"; exit 1; }
+    mkdir -p "$(ldir "$L")/microvms"
+    if [[ $(bunker_sflc_mode) == shufflecake ]]; then
+      d=$(bunker_sflc_device); [[ -n $d ]] || { echo "need device"; exit 1; }
+      printf '%s\n' "$pass" | shufflecake open "$d" 2>/dev/null \
+        || printf '%s\n' "$pass" | shufflecake open --device "$d" 2>/dev/null \
+        || echo "WARN: shufflecake open failed — stub dir" >&2
+    else
+      printf '%s' "$pass" | sha256sum | awk '{print $1}' >"/run/bunker/layer-${L}.cookie"
+      chmod 600 "/run/bunker/layer-${L}.cookie"
+    fi
+    unset pass; mark "$L"
+    while read -r n; do [[ -n $n ]] && link_z "$n" "$L"; done < <(zones_on_layer "$L")
+    sync_vis; echo "OK unlocked $L"
+    ;;
+  lock)
+    L="${1:-all}"; ensure
+    while read -r n; do
+      [[ -z $n ]] && continue
+      systemctl stop "microvm@${n}.service" 2>/dev/null || true
+      unlink_z "$n"
+    done < <(if [[ $L == all ]]; then zones_on_layer; else zones_on_layer "$L"; fi)
+    if [[ $L == all ]]; then
+      : >"$(bunker_unlocked_layers_file)"; rm -f /run/bunker/layer-*.cookie
+      command -v shufflecake >/dev/null && [[ -n $(bunker_sflc_device) ]] \
+        && { shufflecake close "$(bunker_sflc_device)" 2>/dev/null || true; }
+    else
+      unmark "$L"; rm -f "/run/bunker/layer-${L}.cookie"
+    fi
+    sync_vis; echo "OK locked $L"
+    ;;
+  sync|sync-visible) sync_vis ;;
+  unlock-zone)
+    # Unlock ONE invisible zone via its unique layer (+ optional hideHash).
+    # Other hidden zones on other layers stay locked.
+    NAME="${1:?zone}"; ensure
+    L="$(zone_layer "$NAME")"
+    [[ -n $L && $L =~ ^[0-9]+$ ]] || { echo "zone $NAME has no layer" >&2; exit 1; }
+    pass="$(verify_zone_pass "$NAME")" || exit 1
+    if unlocked "$L"; then echo "already"; sync_vis; exit 0; fi
+    mkdir -p "$(ldir "$L")/microvms"
+    if [[ $(bunker_sflc_mode) == shufflecake ]]; then
+      d=$(bunker_sflc_device); [[ -n $d ]] || { echo "need device"; exit 1; }
+      printf '%s\n' "$pass" | shufflecake open "$d" 2>/dev/null \
+        || printf '%s\n' "$pass" | shufflecake open --device "$d" 2>/dev/null \
+        || echo "WARN: shufflecake open failed — stub dir" >&2
+    else
+      printf '%s' "$pass" | sha256sum | awk '{print $1}' >"/run/bunker/layer-${L}.cookie"
+      chmod 600 "/run/bunker/layer-${L}.cookie"
+    fi
+    unset pass; mark "$L"
+    link_z "$NAME" "$L"
+    sync_vis; echo "OK unlocked zone $NAME (layer $L)"
+    ;;
+  lock-zone)
+    NAME="${1:?zone}"; ensure
+    L="$(zone_layer "$NAME")"
+    [[ -n $L && $L =~ ^[0-9]+$ ]] || { echo "zone $NAME has no layer" >&2; exit 1; }
+    systemctl stop "microvm@${NAME}.service" 2>/dev/null || true
+    unlink_z "$NAME"
+    # If no other zone still needs this layer, lock the layer.
+    others="$(zones_on_layer "$L" | grep -vx "$NAME" || true)"
+    if [[ -z $others ]]; then
+      unmark "$L"; rm -f "/run/bunker/layer-${L}.cookie"
+    fi
+    sync_vis; echo "OK locked zone $NAME"
+    ;;
+  path)
+    NAME="${1:?}"
+    zone_layer "$NAME"
+    ;;
+  -h|--help) sed -n '2,3p' "$0" | sed 's/^# //';;
+  *) echo "unknown: $cmd" >&2; exit 1;;
+esac

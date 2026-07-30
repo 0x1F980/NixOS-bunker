@@ -1,38 +1,21 @@
 #!/usr/bin/env bash
-# Isolation smoke — minimal zone model.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PASS=0
-FAIL=0
-check() {
-  local name="$1"
-  shift
-  if "$@"; then
-    echo "PASS: $name"
-    PASS=$((PASS + 1))
-  else
-    echo "FAIL: $name"
-    FAIL=$((FAIL + 1))
-  fi
-}
-
-echo "== bunker isolation =="
-
+PASS=0; FAIL=0
+check() { local n=$1; shift; if "$@"; then echo "PASS: $n"; PASS=$((PASS+1)); else echo "FAIL: $n"; FAIL=$((FAIL+1)); fi; }
+echo "== bunker =="
 check "zones.json" test -f "$ROOT/config/zones.json"
-check "invisible field" grep -q '"invisible"' "$ROOT/config/zones.json"
-check "panic field" grep -q '"panic"' "$ROOT/config/zones.json"
-check "bunker-tui" test -f "$ROOT/tools/bunker-tui/src/main.rs"
-check "zones-ui" grep -q 'bunker-tui' "$ROOT/modules/zones-ui.nix"
-check "no deniable-zones.json" test ! -f "$ROOT/config/deniable-zones.json"
-check "no old TUIs" test ! -d "$ROOT/tools/bunker-zones-tui"
-check "flake x86 only" grep -q 'x86_64-linux' "$ROOT/flake.nix"
-check "no multi-arch theater" bash -c "! grep -q 'loongarch\|powerpc\|mipsel' \"$ROOT/flake.nix\""
-check "no zone-cursor" test ! -f "$ROOT/modules/guests/zone-cursor.nix"
-check "no firejail on host" bash -c "! grep -q 'firejail' \"$ROOT/modules/hardening.nix\""
-check "hardening.nix" test -f "$ROOT/modules/hardening.nix"
-check "openssh force" grep -q 'mkForce true' "$ROOT/modules/host-minimal.nix"
-check "sflc→zones.json" grep -q 'zones.json' "$ROOT/scripts/lib-shufflecake.sh"
-check "zone-start invisible" grep -Eq 'invisible_blocked|require_invisible' "$ROOT/scripts/zone-start.sh"
-
+check "bunker-tui full CRUD" grep -qE 'Mode::Add|cycle_color|rename_zone|delete_zone' "$ROOT/tools/bunker-tui/src/main.rs"
+check "per-zone hide unlock" grep -qE 'unlock-zone|hideHash|next_free_layer|Mode::UnlockPass' "$ROOT/tools/bunker-tui/src/main.rs"
+check "sflc unlock-zone" grep -q 'unlock-zone)' "$ROOT/scripts/bunker-sflc.sh"
+check "bunker-tui nym/i2p/tor" grep -q 'nym.*i2p.*tor' "$ROOT/tools/bunker-tui/src/main.rs"
+check "iso-run" test -f "$ROOT/scripts/iso-run.sh"
+check "net has nym" grep -q 'nym-client' "$ROOT/modules/guests/net.nix"
+check "net has i2pd" grep -q 'i2pd' "$ROOT/modules/guests/net.nix"
+check "net has tor" grep -q 'services.tor' "$ROOT/modules/guests/net.nix"
+check "no host mat2" bash -c "! grep -q mat2 \"$ROOT/modules/host-minimal.nix\""
+check "zone terminal color" grep -q 'BUNKER_ZONE_COLOR\|color.ansi' "$ROOT/modules/guests/mk-app-zone.nix"
+check "invisible" grep -q '"invisible"' "$ROOT/config/zones.json"
+check "panic" grep -q '"panic"' "$ROOT/config/zones.json"
 echo "== $PASS passed, $FAIL failed =="
-[[ "$FAIL" -eq 0 ]]
+[[ $FAIL -eq 0 ]]

@@ -1,5 +1,4 @@
-# Minimal host: GNOME shell + bunker tools + emergency disk recovery.
-# Daily apps live in zones.
+# Minimal host: GNOME shell + bunker tools + emergency recovery.
 { lib, pkgs, ... }:
 
 let
@@ -7,6 +6,20 @@ let
     name = "bunker-manpage";
     destination = "/share/man/man1/bunker.1";
     text = builtins.readFile ../man/bunker.1;
+  };
+  wrap =
+    name: script:
+    pkgs.writeShellScriptBin name ''exec /etc/bunker/scripts/${script} "$@"'';
+  wraps = lib.mapAttrsToList wrap {
+    bunker-zone-start = "zone-start.sh";
+    bunker-usb-attach = "usb-attach.sh";
+    bunker-usb-detach = "usb-detach.sh";
+    bunker-clip = "clipboard.sh";
+    bunker-test-isolation = "test-isolation.sh";
+    bunker-killswitch = "killswitch.sh";
+    bunker-wipe = "zone-wipe.sh";
+    bunker-zone = "bunker-zone.sh";
+    bunker-term = "zone-term.sh";
   };
 in
 {
@@ -81,7 +94,6 @@ in
   };
   systemd.services.sshd.wantedBy = lib.mkForce [ "multi-user.target" ];
 
-  # bunker / changeme-bunker · admin|root / changeme-admin
   users.users.bunker = {
     isNormalUser = true;
     description = "Bunker daily operator";
@@ -93,7 +105,6 @@ in
     ];
     hashedPassword = "$6$yobMn1FbbF3w0BBL$hENazauAiBWxmQ7g.k2ci8RuFr5NKtk.qHC/2AM1YkDFATF2xCI8JvRXNxkS2a.BjqwzUpIODvqcAjQzaTwRt0";
   };
-
   users.users.admin = {
     isNormalUser = true;
     description = "Host admin";
@@ -103,7 +114,6 @@ in
     ];
     hashedPassword = "$6$byfl3va1hI3gFNNW$8jBB1q/8Iu2nYdQZCLtdAZt/qoBM9MoS.SJRAdr8eTOmYyhTuxu7g4l7e/en6yhE1NyuJ8Tl9lhjT54gWKg6d0";
   };
-
   users.users.root.hashedPassword = "$6$byfl3va1hI3gFNNW$8jBB1q/8Iu2nYdQZCLtdAZt/qoBM9MoS.SJRAdr8eTOmYyhTuxu7g4l7e/en6yhE1NyuJ8Tl9lhjT54gWKg6d0";
 
   security.sudo.wheelNeedsPassword = true;
@@ -112,74 +122,38 @@ in
   environment.etc."bunker/scripts".source = ../scripts;
   environment.etc."bunker/MANUAL".source = ../docs/MANUAL.txt;
 
-  environment.systemPackages = with pkgs; [
-    git
-    vim
-    curl
-    jq
-    tmux
-    qemu_kvm
-    virtiofsd
-    pciutils
-    usbutils
-    nftables
-    wl-clipboard
-    socat
-    sshpass
-    gnome-console
-    gnome-control-center
-    gnome-disk-utility
-    gnome-text-editor
-    gnome-logs
-    nautilus
-    cryptsetup
-    parted
-    smartmontools
-    e2fsprogs
-    dosfstools
-    rsync
-    mat2
-    bunkerMan
-    (writeShellScriptBin "bunker-mat" ''
-      exec ${pkgs.mat2}/bin/mat2 --inplace "$@"
-    '')
-    (writeShellScriptBin "bunker-help" ''
-      exec ${pkgs.less}/bin/less /etc/bunker/MANUAL
-    '')
-    (writeShellScriptBin "bunker-zone-start" ''
-      exec /etc/bunker/scripts/zone-start.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-usb-attach" ''
-      exec /etc/bunker/scripts/usb-attach.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-usb-detach" ''
-      exec /etc/bunker/scripts/usb-detach.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-voice-attach" ''
-      exec /etc/bunker/scripts/voice-attach.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-voice-detach" ''
-      exec /etc/bunker/scripts/voice-detach.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-clip" ''
-      exec /etc/bunker/scripts/clipboard.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-test-isolation" ''
-      exec /etc/bunker/scripts/test-isolation.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-killswitch" ''
-      exec /etc/bunker/scripts/killswitch.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-wipe" ''
-      exec /etc/bunker/scripts/zone-wipe.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-zone" ''
-      exec /etc/bunker/scripts/bunker-zone.sh "$@"
-    '')
-    (writeShellScriptBin "bunker-term" ''
-      exec /etc/bunker/scripts/zone-term.sh "$@"
-    '')
-  ];
+  environment.systemPackages =
+    with pkgs;
+    [
+      git
+      vim
+      curl
+      jq
+      tmux
+      qemu_kvm
+      virtiofsd
+      pciutils
+      usbutils
+      nftables
+      wl-clipboard
+      socat
+      sshpass
+      gnome-console
+      gnome-control-center
+      gnome-disk-utility
+      gnome-text-editor
+      gnome-logs
+      nautilus
+      cryptsetup
+      parted
+      smartmontools
+      e2fsprogs
+      dosfstools
+      rsync
+      bunkerMan
+      (writeShellScriptBin "bunker-help" ''exec ${less}/bin/less /etc/bunker/MANUAL'')
+    ]
+    ++ wraps;
 
   services.pcscd.enable = false;
   hardware.nitrokey.enable = false;

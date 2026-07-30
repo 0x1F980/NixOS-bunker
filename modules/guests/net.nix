@@ -1,4 +1,4 @@
-# netVM — sole egress; Nym / i2p / Tor; DNS/NTP; SOCKS frontends per zone
+# netVM — egress: Nym / i2p / Tor SOCKS frontends per zone + DNS.
 {
   pkgs,
   lib,
@@ -11,11 +11,7 @@ let
     lib.filterAttrs (_: z: z ? socks && z.socks != null) bunkerAppZones
   );
   nymBin = "${pkgs.nym}/bin/nym-client";
-
-  # LAN SOCKS frontends on 10.0.0.1:
-  #   nym: port        → 127.0.0.1:1070
-  #   i2p: port+1000   → 127.0.0.1:4447
-  #   tor: port+2000   → 127.0.0.1:9050
+  # nym=port → :1070 · i2p=port+1000 → :4447 · tor=port+2000 → :9050
   frontendServices =
     lib.concatMapAttrs (
       backend:
@@ -28,7 +24,7 @@ let
       lib.mapAttrs' (
         zone: port:
         lib.nameValuePair "${backend}-socks-${zone}" {
-          description = "${backend} SOCKS :${toString (port + offset)} zone ${zone}";
+          description = "${backend} SOCKS :${toString (port + offset)} ${zone}";
           after = [ "network-online.target" ] ++ after;
           wants = [ "network-online.target" ];
           requires = requires;
@@ -95,12 +91,8 @@ in
   environment.systemPackages = with pkgs; [
     nym
     tor
-    torsocks
     i2pd
     nftables
-    dig
-    tcpdump
-    curl
     socat
   ];
 
@@ -118,35 +110,30 @@ in
     proto.socksProxy.address = "127.0.0.1";
     proto.socksProxy.port = 4447;
     proto.socksProxy.outproxyEnable = true;
-    proto.http.enable = true;
-    proto.http.address = "127.0.0.1";
-    proto.http.port = 7070;
   };
 
   services.unbound = {
     enable = true;
-    settings = {
-      server = {
-        interface = [
-          "10.0.0.1"
-          "127.0.0.1"
-        ];
-        access-control = [
-          "10.0.0.0/24 allow"
-          "127.0.0.0/8 allow"
-        ];
-        do-not-query-localhost = "yes";
-      };
-      forward-zone = [
-        {
-          name = ".";
-          forward-addr = [
-            "1.1.1.1"
-            "9.9.9.9"
-          ];
-        }
+    settings.server = {
+      interface = [
+        "10.0.0.1"
+        "127.0.0.1"
       ];
+      access-control = [
+        "10.0.0.0/24 allow"
+        "127.0.0.0/8 allow"
+      ];
+      do-not-query-localhost = "yes";
     };
+    settings.forward-zone = [
+      {
+        name = ".";
+        forward-addr = [
+          "1.1.1.1"
+          "9.9.9.9"
+        ];
+      }
+    ];
   };
 
   networking.useDHCP = false;
@@ -157,14 +144,9 @@ in
     }
   ];
   networking.interfaces.eth1.useDHCP = true;
-
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
-  networking.firewall.allowedTCPPorts = [
-    53
-    9050
-    4447
-  ]
+  networking.firewall.allowedTCPPorts = [ 53 ]
   ++ lib.attrValues zoneSocks
   ++ map (p: p + 1000) (lib.attrValues zoneSocks)
   ++ map (p: p + 2000) (lib.attrValues zoneSocks);
@@ -183,11 +165,8 @@ in
 
   systemd.services = {
     nym-client = {
-      description = "Single Nym client (ONE mixnet identity — Nym limitation)";
-      after = [
-        "network-online.target"
-        "sys-subsystem-net-devices-eth0.device"
-      ];
+      description = "Nym client (one shared mixnet identity)";
+      after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
@@ -196,19 +175,16 @@ in
         Group = "nym";
         StateDirectory = "nym/bunker";
         WorkingDirectory = "/var/lib/nym/bunker";
-        ExecStartPre = pkgs.writeShellScript "nym-init-bunker" ''
+        ExecStartPre = pkgs.writeShellScript "nym-init" ''
           set -euo pipefail
           export HOME=/var/lib/nym
           mkdir -p /var/lib/nym/bunker
           cd /var/lib/nym/bunker
           if [ ! -f config.toml ] && [ ! -f config.yaml ] && [ ! -d config ] && [ ! -d .nym ]; then
-            ${nymBin} init --id bunker || ${nymBin} init --id bunker --output /var/lib/nym/bunker || {
-              echo "init failed — see docs/egress.md" >&2
-              exit 1
-            }
+            ${nymBin} init --id bunker || ${nymBin} init --id bunker --output /var/lib/nym/bunker || exit 1
           fi
         '';
-        ExecStart = pkgs.writeShellScript "nym-run-bunker" ''
+        ExecStart = pkgs.writeShellScript "nym-run" ''
           set -euo pipefail
           export HOME=/var/lib/nym
           if ${nymBin} run --help 2>&1 | grep -qiE 'socks5|socks-bind|socks5-bind'; then
@@ -225,13 +201,8 @@ in
   // frontendServices;
 
   environment.etc."bunker/egress-ports".text = lib.concatStringsSep "\n" (
-    [
-      "# 10.0.0.1 SOCKS — set zones.json internet=nym|i2p|tor|none"
-      "# nym = ONE shared identity; i2p = i2pd outproxy alternative; tor = tor socks"
-    ]
-    ++ lib.mapAttrsToList (
-      zone: port:
-      "${zone} nym=${toString port} i2p=${toString (port + 1000)} tor=${toString (port + 2000)}"
+    lib.mapAttrsToList (
+      zone: port: "${zone} nym=${toString port} i2p=${toString (port + 1000)} tor=${toString (port + 2000)}"
     ) zoneSocks
   );
 

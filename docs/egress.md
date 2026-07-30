@@ -10,6 +10,7 @@ netVM (`10.0.0.1`) fronts SOCKS per zone:
 
 ```bash
 bunker-zone set personal internet=nym   # or i2p|tor|none
+# or in bunker TUI: n
 sudo nixos-rebuild switch --flake .#host
 ```
 

@@ -1,381 +1,157 @@
 #!/usr/bin/env bash
 # Zone CRUD — edits config/zones.json
-# Usage: bunker-zone list|show|add|set|rename|rm|apps|usb|templates
+# Usage: bunker-zone list|show|add|set|rename|rm|apps|usb|templates|colors
 set -euo pipefail
-
 # shellcheck source=lib-common.sh
 source "$(dirname "$0")/lib-common.sh"
-
-ROOT="$(bunker_repo_root)"
 ZONES_JSON="$(bunker_zones_json)"
-TEMPLATES_DIR="$ROOT/templates"
-[[ -d "$TEMPLATES_DIR" ]] || TEMPLATES_DIR="$HOME/NixOS-bunker/templates"
+ROOT="$(bunker_repo_root)"
+TPL="$ROOT/templates"
+[[ -d "$TPL" ]] || TPL="$HOME/NixOS-bunker/templates"
+export ZONE_JSON="$ZONES_JSON"
+py() { python3 - "$@"; }
 
-usage() {
-  sed -n '2,3p' "$0" | sed 's/^# //'
-}
-
-need_py() {
-  command -v python3 >/dev/null || {
-    echo "python3 required for bunker-zone CRUD" >&2
-    exit 1
-  }
-}
-
-py() {
-  ZONE_JSON="$ZONES_JSON" python3 - "$@"
-}
-
-cmd_list() {
-  need_py
-  py <<'PY'
-import json, os
-z = json.load(open(os.environ["ZONE_JSON"]))
-print(f"{'NAME':12} {'TYPE':11} {'COLOR':8} {'TMPL':10} {'IP':14} {'NET':8} USB/ISO")
-for name, c in sorted(z.items()):
-    typ = c.get("kind") or ("disposable" if c.get("disposable") else "appvm")
-    usb = ",".join(c.get("usb") or []) or "-"
-    iso = (c.get("iso") or "").strip()
-    extra = f"iso={iso}" if (c.get("template") == "iso" or iso) else usb
-    print(f"{name:12} {typ:11} {c.get('color','-'):8} {c.get('template','-'):10} {c.get('ip','-'):14} {c.get('internet','-'):8} {extra}")
+case "${1:-}" in
+  list|ls) py <<'PY'
+import json,os
+z=json.load(open(os.environ["ZONE_JSON"]))
+print(f"{'NAME':12} {'TYPE':11} {'COLOR':7} {'TMPL':8} {'IP':14} {'NET':6} EXTRA")
+for n,c in sorted(z.items()):
+ t=c.get("kind") or ("disposable" if c.get("disposable") else "appvm")
+ iso=(c.get("iso") or "").strip()
+ x=f"iso={iso}" if (c.get("template")=="iso" or iso) else ",".join(c.get("usb") or []) or "-"
+ print(f"{n:12} {t:11} {c.get('color','-'):7} {c.get('template','-'):8} {c.get('ip','-'):14} {c.get('internet','-'):6} {x}")
 PY
-}
-
-cmd_templates() {
-  local d="$TEMPLATES_DIR" f
-  [[ -d "$d" ]] || {
-    echo "No templates at $d" >&2
-    exit 1
-  }
-  for f in "$d"/*.nix; do
-    [[ -f "$f" ]] && echo "  $(basename "$f" .nix)"
-  done
-  echo "ISO: bunker-zone add tails --template iso --iso /path.iso --disposable"
-}
-
-cmd_show() {
-  local name="$1"
-  need_py
-  NAME="$name" py <<'PY'
-import json, os
-z = json.load(open(os.environ["ZONE_JSON"]))
-n = os.environ["NAME"]
-if n not in z:
-    raise SystemExit(f"unknown zone: {n}")
-print(json.dumps({n: z[n]}, indent=2))
+  ;;
+  show) NAME="${2:?}" py <<'PY'
+import json,os
+z=json.load(open(os.environ["ZONE_JSON"]));n=os.environ["NAME"]
+assert n in z, n; print(json.dumps({n:z[n]},indent=2))
 PY
-}
-
-next_free() {
-  need_py
-  py <<'PY'
-import json, os
-z = json.load(open(os.environ["ZONE_JSON"]))
-used_ip = {int(c["ip"].split(".")[-1]) for c in z.values() if c.get("ip")}
-used_socks = {c["socks"] for c in z.values() if c.get("socks")}
-used_mac = {int(c["mac"].split(":")[-1], 16) for c in z.values() if c.get("mac")}
-ip = next(i for i in range(11, 250) if i not in used_ip)
-socks = next(p for p in range(1081, 1200) if p not in used_socks)
-macn = next(i for i in range(0x11, 0xFE) if i not in used_mac)
-print(f"10.0.0.{ip}")
-print(f"02:b0:00:00:00:{macn:02x}")
-print(socks)
-PY
-}
-
-cmd_add() {
-  local name="$1"
-  shift
-  local template="browser" color="red" disposable="false" internet="nym" mem="1536" vcpu="2"
-  local iso="" kind="" boot="iso" disk_gb="16"
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --template)
-        template="$2"
-        shift 2
-        ;;
-      --iso)
-        iso="$2"
-        template="iso"
-        shift 2
-        ;;
-      --kind)
-        kind="$2"
-        shift 2
-        ;;
-      --boot)
-        boot="$2"
-        shift 2
-        ;;
-      --disk-gb)
-        disk_gb="$2"
-        shift 2
-        ;;
-      --color)
-        color="$2"
-        shift 2
-        ;;
-      --internet)
-        internet="$2"
-        shift 2
-        ;;
-      --mem)
-        mem="$2"
-        shift 2
-        ;;
-      --vcpu)
-        vcpu="$2"
-        shift 2
-        ;;
-      --disposable)
-        disposable="true"
-        shift
-        ;;
-      *)
-        echo "unknown flag: $1" >&2
-        exit 1
-        ;;
+  ;;
+  templates|template)
+    for f in "$TPL"/*.nix; do [[ -f "$f" ]] && echo "  $(basename "$f" .nix)"; done
+    echo "ISO: bunker-zone add tails --template iso --iso /path.iso --disposable"
+    ;;
+  colors)
+    echo "Colors: red orange yellow green blue purple black gray"
+    echo "Set: bunker-zone set <zone> color=blue"
+    echo "(Host icon + zone terminal PS1; rebuild after color/rename)"
+    ;;
+  add)
+    name="${2:?}"; shift 2
+    template=browser; color=red; disposable=false; internet=nym; mem=1536; vcpu=2
+    iso=""; kind=""; boot=iso; disk_gb=16
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --template) template=$2; shift 2;;
+        --iso) iso=$2; template=iso; shift 2;;
+        --kind) kind=$2; shift 2;;
+        --boot) boot=$2; shift 2;;
+        --disk-gb) disk_gb=$2; shift 2;;
+        --color) color=$2; shift 2;;
+        --internet) internet=$2; shift 2;;
+        --mem) mem=$2; shift 2;;
+        --vcpu) vcpu=$2; shift 2;;
+        --disposable) disposable=true; shift;;
+        *) echo "unknown: $1" >&2; exit 1;;
+      esac
+    done
+    [[ $internet == proxy ]] && internet=nym
+    [[ $template == iso && -z $iso ]] && { echo "need --iso"; exit 1; }
+    [[ $template == iso && $mem == 1536 ]] && mem=2048
+    case "${kind:-}" in
+      disposable) disposable=true; kind=disposable;;
+      appvm|template) disposable=false;;
+      "") kind=appvm; [[ $disposable == true ]] && kind=disposable;;
+      *) echo "bad kind"; exit 1;;
     esac
-  done
-  # default internet=nym (i2p|tor|none also valid); ISO live often wants none
-  [[ "$internet" == "proxy" ]] && internet="nym"
-  if [[ "$template" == "iso" && -z "$iso" ]]; then
-    echo "ERROR: --template iso requires --iso /path/to.iso" >&2
-    exit 1
-  fi
-  if [[ "$template" == "iso" && "$mem" == "1536" ]]; then
-    mem="2048"
-  fi
-  if [[ -n "$kind" ]]; then
-    case "$kind" in
-      disposable) disposable="true" ;;
-      appvm|template) disposable="false" ;;
-      *)
-        echo "ERROR: --kind must be appvm|disposable|template" >&2
-        exit 1
-        ;;
-    esac
-  elif [[ "$disposable" == "true" ]]; then
-    kind="disposable"
-  elif [[ "$template" == "iso" ]]; then
-    kind="appvm"
-  else
-    kind="appvm"
-  fi
-  need_py
-  mapfile -t alloc < <(next_free)
-  NAME="$name" TEMPLATE="$template" COLOR="$color" DISP="$disposable" NET="$internet" MEM="$mem" VCPU="$vcpu" \
-    IP="${alloc[0]}" MAC="${alloc[1]}" SOCKS="${alloc[2]}" ISO="$iso" KIND="$kind" BOOT="$boot" DISKGB="$disk_gb" \
-    py <<'PY'
-import json, os
-path = os.environ["ZONE_JSON"]
-z = json.load(open(path))
-n = os.environ["NAME"]
-if n in z:
-    raise SystemExit(f"zone exists: {n}")
-if not n.replace("-", "").replace("_", "").isalnum():
-    raise SystemExit("name must be alphanumeric/_/-")
-kind = os.environ["KIND"]
-entry = {
-    "template": os.environ["TEMPLATE"],
-    "ip": os.environ["IP"],
-    "mac": os.environ["MAC"],
-    "socks": int(os.environ["SOCKS"]),
-    "mem": int(os.environ["MEM"]),
-    "vcpu": int(os.environ["VCPU"]),
-    "disposable": os.environ["DISP"] == "true" or kind == "disposable",
-    "kind": kind,
-    "color": os.environ["COLOR"],
-    "internet": os.environ["NET"],
-    "usb": [],
-    "apps": [],
-    "voice": False,
-    "metadata": False,
-}
-iso = os.environ.get("ISO") or ""
-if os.environ["TEMPLATE"] == "iso" or iso:
-    entry["template"] = "iso"
-    entry["iso"] = iso
-    entry["boot"] = os.environ.get("BOOT") or "iso"
-    entry["diskGb"] = int(os.environ.get("DISKGB") or 16)
-    entry["display"] = "gtk"
-z[n] = entry
-json.dump(z, open(path, "w"), indent=2)
-print(f"added {n}: {json.dumps(z[n], indent=2)}")
-if entry.get("template") == "iso":
-    print("ISO zone: no nixos-rebuild needed for the guest. Start: bunker-zone-start", n)
-    print("Refresh GNOME launchers (optional): sudo nixos-rebuild switch --flake .#host")
-else:
-    print("Next: nixos-rebuild switch --flake .#host   # and bunker-zone-start", n)
+    [[ $internet =~ ^(nym|i2p|tor|none)$ ]] || { echo "internet=nym|i2p|tor|none"; exit 1; }
+    read -r IP MAC SOCKS < <(py <<'PY'
+import json,os
+z=json.load(open(os.environ["ZONE_JSON"]))
+ui={int(c["ip"].split(".")[-1]) for c in z.values() if c.get("ip")}
+us={c["socks"] for c in z.values() if c.get("socks")}
+um={int(c["mac"].split(":")[-1],16) for c in z.values() if c.get("mac")}
+print(f"10.0.0.{next(i for i in range(11,250) if i not in ui)} 02:b0:00:00:00:{next(i for i in range(0x11,0xfe) if i not in um):02x} {next(p for p in range(1081,1200) if p not in us)}")
 PY
-}
-
-cmd_set() {
-  local name="$1"
-  shift
-  [[ $# -gt 0 ]] || {
-    echo "set needs key=value" >&2
-    exit 1
-  }
-  need_py
-  NAME="$name" ARGS="$*" py <<'PY'
-import json, os
-path = os.environ["ZONE_JSON"]
-z = json.load(open(path))
-n = os.environ["NAME"]
-if n not in z:
-    raise SystemExit(f"unknown zone: {n}")
-bools = {"true": True, "false": False}
+)
+    NAME=$name TEMPLATE=$template COLOR=$color DISP=$disposable NET=$internet MEM=$mem VCPU=$vcpu \
+    IP=$IP MAC=$MAC SOCKS=$SOCKS ISO=$iso KIND=$kind BOOT=$boot DISKGB=$disk_gb py <<'PY'
+import json,os
+p=os.environ["ZONE_JSON"]; z=json.load(open(p)); n=os.environ["NAME"]
+assert n not in z and n.replace("-","").replace("_","").isalnum(), "bad/exists"
+k=os.environ["KIND"]
+e={"template":os.environ["TEMPLATE"],"ip":os.environ["IP"],"mac":os.environ["MAC"],
+   "socks":int(os.environ["SOCKS"]),"mem":int(os.environ["MEM"]),"vcpu":int(os.environ["VCPU"]),
+   "disposable":os.environ["DISP"]=="true" or k=="disposable","kind":k,"color":os.environ["COLOR"],
+   "internet":os.environ["NET"],"usb":[],"apps":[],"invisible":False,"layer":None,"panic":"keep","diskGb":16}
+iso=os.environ.get("ISO") or ""
+if os.environ["TEMPLATE"]=="iso" or iso:
+ e.update(template="iso",iso=iso,boot=os.environ.get("BOOT") or "iso",
+          diskGb=int(os.environ.get("DISKGB") or 16),display="gtk")
+z[n]=e; json.dump(z,open(p,"w"),indent=2); print(json.dumps({n:e},indent=2))
+print("start: bunker-zone-start", n if e.get("template")=="iso" else n)
+print("" if e.get("template")=="iso" else "Next: sudo nixos-rebuild switch --flake .#host")
+PY
+  ;;
+  set)
+    NAME="${2:?}" ARGS="${*:3}" py <<'PY'
+import json,os
+p=os.environ["ZONE_JSON"]; z=json.load(open(p)); n=os.environ["NAME"]
+assert n in z
 for pair in os.environ["ARGS"].split():
-    if "=" not in pair:
-        raise SystemExit(f"bad pair: {pair}")
-    k, v = pair.split("=", 1)
-    if k in ("socks", "mem", "vcpu"):
-        z[n][k] = int(v)
-    elif k == "disposable":
-        z[n][k] = bools.get(v.lower(), v.lower() == "1")
-        z[n]["kind"] = "disposable" if z[n][k] else "appvm"
-    elif k == "kind":
-        if v not in ("appvm", "disposable", "template"):
-            raise SystemExit("kind must be appvm|disposable|template")
-        z[n][k] = v
-        z[n]["disposable"] = v == "disposable"
-    elif k in ("template", "ip", "mac", "color", "internet", "iso", "boot", "disk", "display", "panic"):
-        if k == "panic" and v not in ("keep", "lock", "wipe"):
-            raise SystemExit("panic must be keep|lock|wipe")
-        z[n][k] = v
-        if k == "template" and v == "iso" and "iso" not in z[n]:
-            z[n]["iso"] = ""
-        if k == "iso" and v:
-            z[n]["template"] = "iso"
-    elif k in ("diskGb", "disk_gb", "layer"):
-        key = "diskGb" if k in ("diskGb", "disk_gb") else "layer"
-        z[n][key] = None if v in ("", "null", "none") else int(v)
-    elif k in ("voice", "metadata", "invisible"):
-        truth = {"true", "1", "on", "yes"}
-        falsy = {"false", "0", "off", "no", "none", ""}
-        vl = v.lower()
-        if vl in truth:
-            z[n][k] = True
-        elif vl in falsy:
-            z[n][k] = False
-        else:
-            raise SystemExit(f"{k} must be on|off")
-    else:
-        raise SystemExit(f"unsupported key: {k}")
-json.dump(z, open(path, "w"), indent=2)
-print(json.dumps({n: z[n]}, indent=2))
+ k,v=pair.split("=",1); vl=v.lower()
+ if k in ("socks","mem","vcpu"): z[n][k]=int(v)
+ elif k in ("diskGb","disk_gb"): z[n]["diskGb"]=int(v)
+ elif k=="disposable":
+  z[n][k]=vl in ("true","1","on"); z[n]["kind"]="disposable" if z[n][k] else "appvm"
+ elif k=="kind":
+  assert v in ("appvm","disposable","template"); z[n][k]=v; z[n]["disposable"]=v=="disposable"
+ elif k in ("template","ip","mac","color","internet","iso","boot","disk","display","panic"):
+  if k=="panic": assert v in ("keep","lock","wipe")
+  if k=="internet": assert v in ("nym","i2p","tor","none")
+  z[n][k]=v
+  if k=="iso" and v: z[n]["template"]="iso"
+ elif k=="layer":
+  z[n][k]=None if vl in ("","null","none") else int(v)
+ elif k=="invisible":
+  if vl in ("true","1","on","yes"): z[n][k]=True
+  elif vl in ("false","0","off","no",""): z[n][k]=False
+  else: raise SystemExit("invisible on|off")
+ else: raise SystemExit(f"bad key {k}")
+json.dump(z,open(p,"w"),indent=2); print(json.dumps({n:z[n]},indent=2))
 PY
-}
-
-cmd_rm() {
-  local name="$1"
-  need_py
-  NAME="$name" py <<'PY'
-import json, os
-path = os.environ["ZONE_JSON"]
-z = json.load(open(path))
-n = os.environ["NAME"]
-if n not in z:
-    raise SystemExit(f"unknown zone: {n}")
-del z[n]
-json.dump(z, open(path, "w"), indent=2)
-print(f"removed {n}")
+  ;;
+  rm|delete) NAME="${2:?}" py <<'PY'
+import json,os
+p=os.environ["ZONE_JSON"]; z=json.load(open(p)); n=os.environ["NAME"]
+del z[n]; json.dump(z,open(p,"w"),indent=2); print("removed",n)
 PY
-}
-
-cmd_rename() {
-  local old="$1" new="$2"
-  need_py
-  OLD="$old" NEW="$new" py <<'PY'
-import json, os, re
-path = os.environ["ZONE_JSON"]
-z = json.load(open(path))
-old, new = os.environ["OLD"], os.environ["NEW"]
-if old not in z:
-    raise SystemExit(f"unknown zone: {old}")
-if not re.fullmatch(r"[A-Za-z0-9_-]+", new):
-    raise SystemExit("name must be alphanumeric/_/-")
-if new in z:
-    raise SystemExit(f"zone exists: {new}")
-z[new] = z.pop(old)
-json.dump(z, open(path, "w"), indent=2)
-print(f"renamed {old} → {new}")
+  ;;
+  rename|mv) OLD="${2:?}" NEW="${3:?}" py <<'PY'
+import json,os,re
+p=os.environ["ZONE_JSON"]; z=json.load(open(p)); o,n=os.environ["OLD"],os.environ["NEW"]
+assert o in z and n not in z and re.fullmatch(r"[A-Za-z0-9_-]+",n)
+z[n]=z.pop(o); json.dump(z,open(p,"w"),indent=2); print(f"renamed {o}→{n}")
 print("Next: sudo nixos-rebuild switch --flake .#host")
-print(json.dumps({new: z[new]}, indent=2))
 PY
-}
-
-cmd_apps() {
-  local name="$1" op="$2" pkg="$3"
-  need_py
-  NAME="$name" OP="$op" PKG="$pkg" FIELD=apps py <<'PY'
-import json, os
-path = os.environ["ZONE_JSON"]
-z = json.load(open(path))
-n, op, pkg, field = os.environ["NAME"], os.environ["OP"], os.environ["PKG"], os.environ["FIELD"]
-if n not in z:
-    raise SystemExit(f"unknown zone: {n}")
-lst = list(z[n].get(field) or [])
-if op == "add":
-    if pkg not in lst:
-        lst.append(pkg)
-elif op == "rm":
-    lst = [x for x in lst if x != pkg]
-else:
-    raise SystemExit("op must be add|rm")
-z[n][field] = lst
-json.dump(z, open(path, "w"), indent=2)
-print(json.dumps({n: z[n]}, indent=2))
+  ;;
+  apps|usb)
+    FIELD=$1 NAME="${2:?}" OP="${3:?}" PKG="${4:?}" py <<'PY'
+import json,os,re
+p=os.environ["ZONE_JSON"]; z=json.load(open(p))
+n,op,pkg,f=os.environ["NAME"],os.environ["OP"],os.environ["PKG"],os.environ["FIELD"]
+assert n in z
+if f=="usb": assert re.match(r"^[0-9a-fA-F]+:[0-9a-fA-F]+$",pkg)
+lst=list(z[n].get(f) or [])
+if op=="add":
+ if pkg not in lst: lst.append(pkg)
+elif op=="rm": lst=[x for x in lst if x!=pkg]
+else: raise SystemExit("add|rm")
+z[n][f]=lst; json.dump(z,open(p,"w"),indent=2); print(json.dumps({n:z[n]},indent=2))
 PY
-}
-
-cmd_usb() {
-  local name="$1" op="$2" dev="$3"
-  need_py
-  NAME="$name" OP="$op" PKG="$dev" FIELD=usb py <<'PY'
-import json, os, re
-path = os.environ["ZONE_JSON"]
-z = json.load(open(path))
-n, op, pkg, field = os.environ["NAME"], os.environ["OP"], os.environ["PKG"], os.environ["FIELD"]
-if n not in z:
-    raise SystemExit(f"unknown zone: {n}")
-if not re.match(r"^[0-9a-fA-F]+:[0-9a-fA-F]+$", pkg):
-    raise SystemExit("usb id must be vid:pid hex")
-lst = list(z[n].get(field) or [])
-if op == "add":
-    if pkg not in lst:
-        lst.append(pkg)
-elif op == "rm":
-    lst = [x for x in lst if x != pkg]
-else:
-    raise SystemExit("op must be add|rm")
-z[n][field] = lst
-json.dump(z, open(path, "w"), indent=2)
-print(json.dumps({n: z[n]}, indent=2))
-PY
-}
-
-main() {
-  local cmd="${1:-}"
-  shift || true
-  case "$cmd" in
-    list | ls) cmd_list ;;
-    show) cmd_show "${1:?name}" ;;
-    add) cmd_add "${1:?name}" "${@:2}" ;;
-    set) cmd_set "${1:?name}" "${@:2}" ;;
-    rename | mv) cmd_rename "${1:?old}" "${2:?new}" ;;
-    rm | delete) cmd_rm "${1:?name}" ;;
-    apps) cmd_apps "${1:?name}" "${2:?add|rm}" "${3:?pkg}" ;;
-    usb) cmd_usb "${1:?name}" "${2:?add|rm}" "${3:?vid:pid}" ;;
-    templates | template) cmd_templates ;;
-    -h | --help | "") usage ;;
-    *)
-      echo "unknown: $cmd" >&2
-      usage
-      exit 1
-      ;;
-  esac
-}
-
-main "$@"
+  ;;
+  -h|--help|"") sed -n '2,3p' "$0" | sed 's/^# //';;
+  *) echo "unknown: $1" >&2; exit 1;;
+esac

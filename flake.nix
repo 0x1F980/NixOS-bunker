@@ -46,8 +46,6 @@
       guests = {
         net = mkGuest "net" [ ./modules/guests/net.nix ];
         usb = mkGuest "usb" [ ./modules/guests/usb.nix ];
-        voice = mkGuest "voice" [ ./modules/guests/voice.nix ];
-        vault = mkGuest "vault" [ ./modules/guests/vault.nix ];
       }
       // lib.mapAttrs (
         name: zone:
