@@ -73,14 +73,21 @@ in
 
   users.mutableUsers = false;
 
-  # Host SSH — creates sshd.service (do not mkForce settings.* — breaks freeform merge)
-  services.openssh.enable = lib.mkForce true;
-  services.openssh.openFirewall = true;
-  services.openssh.settings = {
-    PasswordAuthentication = true;
-    KbdInteractiveAuthentication = true;
-    PermitRootLogin = "yes";
+  # Host SSH — ALWAYS create classic sshd.service (not only sshd.socket).
+  # Many operators hit "Unit sshd.service could not be found" when
+  # startWhenNeeded=true leaves only sshd.socket (NixOS-WSL #112, Discourse).
+  services.openssh = {
+    enable = lib.mkForce true;
+    startWhenNeeded = lib.mkForce false;
+    openFirewall = true;
+    ports = [ 22 ];
+    settings = {
+      PasswordAuthentication = true;
+      KbdInteractiveAuthentication = true;
+      PermitRootLogin = "yes";
+    };
   };
+  systemd.services.sshd.wantedBy = lib.mkForce [ "multi-user.target" ];
 
   # Defaults after flake switch (change with passwd):
   #   bunker / changeme-bunker

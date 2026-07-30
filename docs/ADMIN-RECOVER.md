@@ -1,6 +1,6 @@
 # Login / SSH recover
 
-## Passwords (after this flake switch)
+## Passwords (after flake switch)
 
 | Bruger | Kode |
 | --- | --- |
@@ -8,28 +8,35 @@
 | `admin` | `changeme-admin` |
 | `root` | `changeme-admin` |
 
-Skift bagefter: `passwd`.
-
-## SSH (`sshd.service`)
-
-Flake host **enabler** OpenSSH. Efter switch skal unit findes:
+## Diagnose SSH (kør ALT)
 
 ```bash
-cd /path/to/NixOS-bunker
+# 1) Er OpenSSH overhovedet i den aktive generation?
+nixos-option services.openssh.enable
+nixos-option services.openssh.startWhenNeeded
+
+# 2) Hvilke SSH-units findes? (klassisk fælde: kun socket)
+systemctl list-unit-files '*ssh*'
+systemctl list-units --all '*ssh*'
+systemctl status sshd.socket || true
+systemctl status sshd.service || true
+
+# 3) Lytter noget på 22?
+ss -lptn | grep ':22' || true
+```
+
+**Hvis `sshd.socket` er active/listening:** SSH virker allerede — `sshd.service` mangler med vilje (socket activation). Test: `ssh bunker@127.0.0.1`.
+
+**Hvis INGEN ssh-units:** flake-switch landede ikke. Se nedenfor.
+
+## Fix / rebuild
+
+```bash
+cd ~/NixOS-bunker
+git fetch origin && git reset --hard origin/master
 sudo nixos-rebuild switch --flake .#host
+systemctl start sshd
 systemctl status sshd
-ss -lptn | grep ':22'
 ```
 
-Login udefra:
-
-```bash
-ssh bunker@10.118.58.245
-# password: changeme-bunker
-```
-
-## Hvis du er låst ude
-
-1. Boot ældre NixOS-generation  
-2. `git pull` i repoet  
-3. `sudo nixos-rebuild switch --flake .#host`
+Login: `ssh bunker@IP` — `changeme-bunker`.
