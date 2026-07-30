@@ -29,16 +29,7 @@
     "interface-name:vm-*"
   ];
   networking.firewall.enable = true;
-  # Operator SSH — must create sshd.service (password login for bunker/admin)
-  services.openssh = {
-    enable = true;
-    openFirewall = true;
-    settings = {
-      PasswordAuthentication = true;
-      KbdInteractiveAuthentication = true;
-      PermitRootLogin = "prohibit-password";
-    };
-  };
+  # SSH also forced in host-minimal.nix (sshd.service)
   networking.firewall.allowedTCPPorts = lib.mkAfter [ 22 ];
 
   time.timeZone = "Europe/Copenhagen";

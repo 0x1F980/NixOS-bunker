@@ -73,6 +73,17 @@ in
 
   users.mutableUsers = false;
 
+  # Host SSH — always on (creates sshd.service). Do not disable in other modules.
+  services.openssh = lib.mkForce {
+    enable = true;
+    openFirewall = true;
+    settings = {
+      PasswordAuthentication = true;
+      KbdInteractiveAuthentication = true;
+      PermitRootLogin = "yes";
+    };
+  };
+
   # Defaults after flake switch (change with passwd):
   #   bunker / changeme-bunker
   #   admin  / changeme-admin
