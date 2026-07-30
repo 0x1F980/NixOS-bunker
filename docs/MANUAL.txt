@@ -1,64 +1,26 @@
-NixOS-bunker — host operator manual (plain text)
-================================================
+NixOS-bunker — host operator manual
+===================================
 
-Also:  man bunker
+man bunker
 
-WHAT THIS IS
-  Hardened NixOS host + microVM zones (AppVM / Disposable / Template).
-  Brokers: netVM (egress), usbVM (USB 1→many). Not Qubes — contain compromise.
-
-HOST (GNOME) MAY HAVE
-  Terminal, Settings, qube launchers (AppVMs/Disposables/Templates/Service),
-  bunker-* tools, and emergency disk/backup apps for when VMs are down.
-  No daily browser/mail on host.
-
-ZONES
-  Source of truth: config/zones.json  (CRUD: bunker-zone …)
-  Templates:       templates/*.nix    (bunker-template-edit / Templates folder)
+MODEL
+  Zone = VM. apps[] / mem / diskGb on the zone.
+  invisible+layer = Shufflecake. panic = keep|lock|wipe.
+  Brokers: net usb voice. One TUI: bunker.
 
 COMMANDS
-  bunker-zones                       # ratatui zone CRUD (preferred UX)
-  bunker-deniable                    # hide/show whole VMs (Shufflecake layers)
-  bunker-panic-ui                    # ☢ panic — wipe panic-flagged deniable keys
-  bunker-zone list|add|set|rm|apps|usb|templates|colors
-  bunker-broker                      # ratatui defaults: 1=net 2=usb 3=voice 4=meta(mat2)
-  bunker-zone add tails --template iso --iso /path/tails.iso --disposable
-  bunker-zone-start tails            # ISO/HVM via QEMU GTK (see docs/iso.md)
-  bunker-zone rename old new         # rename; color via set color=red / TUI c
-  # colors: docs/colors.md (host icons + NixOS guest cursor)
-
+  bunker
+  bunker-zone list|add|set|rm|apps|usb|rename
   bunker-zone-start <zone|all>
-  bunker-term <zone>                 # colored SSH (also: net, usb)
-  bunker-clip send <zone>            # host→zone; host clip KEPT; zone TTL clear
-  bunker-clip copy <a> <b>           # zone→zone mediated
-  bunker-clip clear
+  bunker-sflc unlock|lock|status <layer>
+  bunker-panic
+  bunker-term <zone>
+  bunker-clip send|copy|clear
   bunker-usb-attach|detach <zone> <vid:pid>
   bunker-killswitch enable|disable|status
   bunker-wipe <zone>
-  bunker-test-isolation [--live]
-  bunker-first-boot | bunker-update
 
-ZONE CRUD POLICY
-  Preferred:  zones · service  /  bunker-zones  /  bunker-zone CLI
-  Hidden VMs: deniable · service  /  docs/deniable.md
-  Panic:      panic · service (default code changeme — change PANIC_HASH)
-  OK:         hand-edit config/zones.json (same SoT), then nixos-rebuild
-  Avoid:      hand-editing Nix modules just to add/remove/tune a zone
+SoT: config/zones.json  then  nixos-rebuild switch --flake .#host
 
-CLIPBOARD TTL
-  Default 30s for ZONE clipboard after send/copy.
-  Hack: /etc/bunker/clipboard.conf  or  BUNKER_CLIP_TTL=60
-
-EMERGENCY (locked out of VMs) — use as admin/sudo when destructive
-  GUI:  Disks (gnome-disks), GParted, Files (nautilus), Disk Usage (baobab),
-        Text Editor, Logs
-  CLI:  cryptsetup, parted, smartctl, nvme, ddrescue, testdisk/photorec,
-        rsync, borg, lvm, mkfs.*, mount, mat2 / bunker-mat (EXIF strip)
-
-LOGIN RECOVERY
-  See docs/ADMIN-RECOVER.md in the checkout (boot older generation if needed).
-
-DOCS (checkout)
-  docs/egress.md  docs/usb.md  docs/voice.md  docs/metadata.md  docs/iso.md
-  docs/portability.md  docs/nym-bootstrap.md  docs/ADMIN-RECOVER.md
-  docs/deniable.md
+DOCS
+  docs/deniable.md  docs/egress.md  docs/usb.md  docs/ADMIN-RECOVER.md

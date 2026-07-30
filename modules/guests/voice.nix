@@ -147,7 +147,7 @@ in
     Physical mic attaches to voiceVM only (USB QMP / host policy).
     App zones with voice=true|on use PULSE_SERVER=tcp:10.0.0.3:4713
     Engine: Chimera (preferred) or sox anonymous fallback (global on voiceVM).
-    Defaults TUI: defaults · service / bunker-broker (key 3 = voice on/off)
+    Defaults: bunker TUI Brokers → voice, or bunker-zone set <z> voice=on|off
     See docs/voice.md
   '';
 

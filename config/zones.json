@@ -6,6 +6,7 @@
     "mac": "02:b0:00:00:00:11",
     "socks": 1081,
     "mem": 1536,
+    "diskGb": 20,
     "vcpu": 2,
     "disposable": false,
     "color": "green",
@@ -13,7 +14,10 @@
     "usb": [],
     "apps": [],
     "voice": false,
-    "metadata": false
+    "metadata": false,
+    "invisible": false,
+    "layer": null,
+    "panic": "keep"
   },
   "work": {
     "template": "dev",
@@ -22,6 +26,7 @@
     "mac": "02:b0:00:00:00:12",
     "socks": 1082,
     "mem": 1920,
+    "diskGb": 30,
     "vcpu": 2,
     "disposable": false,
     "color": "blue",
@@ -29,7 +34,10 @@
     "usb": [],
     "apps": [],
     "voice": false,
-    "metadata": false
+    "metadata": false,
+    "invisible": false,
+    "layer": null,
+    "panic": "keep"
   },
   "browse": {
     "template": "browser",
@@ -38,6 +46,7 @@
     "mac": "02:b0:00:00:00:13",
     "socks": 1083,
     "mem": 1536,
+    "diskGb": 8,
     "vcpu": 2,
     "disposable": true,
     "color": "yellow",
@@ -45,7 +54,10 @@
     "usb": [],
     "apps": [],
     "voice": false,
-    "metadata": false
+    "metadata": false,
+    "invisible": false,
+    "layer": null,
+    "panic": "wipe"
   },
   "radio": {
     "template": "radio",
@@ -54,15 +66,17 @@
     "mac": "02:b0:00:00:00:14",
     "socks": 1084,
     "mem": 1920,
+    "diskGb": 20,
     "vcpu": 2,
     "disposable": false,
     "color": "orange",
     "internet": "nym",
-    "usb": [
-      "0bda:2838"
-    ],
+    "usb": ["0bda:2838"],
     "apps": [],
     "voice": false,
-    "metadata": false
+    "metadata": false,
+    "invisible": false,
+    "layer": null,
+    "panic": "keep"
   }
 }

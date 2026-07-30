@@ -1,25 +1,15 @@
-# Host configuration — minimal "dom0-like" NixOS + microVM orchestration.
-{
-  config,
-  lib,
-  pkgs,
-  self,
-  ...
-}:
+# Host — thin shell + microVM orchestration.
+{ lib, ... }:
 
 {
   imports = [
     ../../modules/host-minimal.nix
-    ../../modules/hardening-portable.nix
-    ../../modules/hardening-apparmor.nix
-    ../../modules/hardening-sysctl.nix
-    ../../modules/hardening-storage.nix
+    ../../modules/hardening.nix
     ../../modules/clipboard-oneway.nix
     ../../modules/microvm-network.nix
     ../../modules/zones-registry.nix
     ../../modules/zones-ui.nix
     ../../modules/shufflecake-deniable.nix
-    # Hardware overlays via flake mkHost (x86_64 / aarch64 / …)
   ];
 
   networking.hostName = "nixos-bunker";
@@ -29,7 +19,6 @@
     "interface-name:vm-*"
   ];
   networking.firewall.enable = true;
-  # SSH also forced in host-minimal.nix (sshd.service)
   networking.firewall.allowedTCPPorts = lib.mkAfter [ 22 ];
 
   time.timeZone = "Europe/Copenhagen";

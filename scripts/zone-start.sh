@@ -29,26 +29,29 @@ list_app_zones() {
   fi
 }
 
-deniable_blocked() {
+invisible_blocked() {
   local z="$1"
-  [[ -f /etc/bunker/deniable-zones.json || -f "$ROOT/config/deniable-zones.json" ]] || return 1
-  local dj="$ROOT/config/deniable-zones.json"
-  [[ -f /etc/bunker/deniable-zones.json ]] && dj=/etc/bunker/deniable-zones.json
-  python3 - "$dj" "$z" <<'PY'
+  local zj="$ROOT/config/zones.json"
+  [[ -f /etc/bunker/zones.json ]] && zj=/etc/bunker/zones.json
+  [[ -f "$zj" ]] || return 1
+  python3 - "$zj" "$z" <<'PY'
 import json, sys
 z = json.load(open(sys.argv[1]))
 n = sys.argv[2]
-raise SystemExit(0 if n in z else 1)
+c = z.get(n)
+if not c or not c.get("invisible"):
+    raise SystemExit(1)
+raise SystemExit(0)
 PY
 }
 
-require_deniable_visible() {
+require_invisible_unlocked() {
   local z="$1"
-  if deniable_blocked "$z"; then
+  if invisible_blocked "$z"; then
     if [[ -f /run/bunker/visible-zones.json ]] && python3 -c "import json,sys;sys.exit(0 if sys.argv[1] in json.load(open('/run/bunker/visible-zones.json')) else 1)" "$z" 2>/dev/null; then
       return 0
     fi
-    echo "ERROR: deniable zone '$z' is locked/hidden — unlock via bunker-deniable / deniable · service" >&2
+    echo "ERROR: invisible zone '$z' is locked — unlock via: bunker  (zones) / bunker-sflc unlock <layer>" >&2
     exit 1
   fi
 }
@@ -66,7 +69,7 @@ ensure_bridge() {
 
 start_one() {
   local z="$1"
-  require_deniable_visible "$z"
+  require_invisible_unlocked "$z"
   ensure_bridge
   if bunker_zone_is_iso "$z"; then
     echo "==> starting ISO/HVM zone '$z' via iso-run.sh"

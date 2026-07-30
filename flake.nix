@@ -1,5 +1,5 @@
 {
-  description = "Hardened, reproducible, compartmentalized NixOS workstation (microVM) — not Qubes";
+  description = "Hardened NixOS microVM workstation — not Qubes";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -16,70 +16,13 @@
     }:
     let
       lib = nixpkgs.lib;
-
-      # Every Linux double nixpkgs exposes in flakes — that is the ceiling.
-      # (Not "every chip ever made": only what NixOS/nixpkgs can target.)
-      supportedSystems =
-        let
-          exposed = lib.filter (lib.hasSuffix "-linux") (lib.systems.flakeExposed or [ ]);
-          # Extra Linux ISAs sometimes missing from flakeExposed but present in nixpkgs
-          extra = [
-            "x86_64-linux"
-            "i686-linux"
-            "aarch64-linux"
-            "armv7l-linux"
-            "armv6l-linux"
-            "riscv64-linux"
-            "riscv32-linux"
-            "powerpc64le-linux"
-            "powerpc64-linux"
-            "powerpc-linux"
-            "mipsel-linux"
-            "mips64el-linux"
-            "loongarch64-linux"
-            "s390x-linux"
-          ];
-        in
-        lib.unique (exposed ++ extra);
-
-      cpuOf = system: lib.removeSuffix "-linux" system;
-
-      # .#host for x86_64; .#host-aarch64 / .#host-riscv64 / .#host-loongarch64 / …
-      hostAttrName =
-        system: if system == "x86_64-linux" then "host" else "host-${cpuOf system}";
-
-      hardwareOverlay =
-        system:
-        if system == "x86_64-linux" then
-          [ ./hardware/generic-x86_64.nix ]
-        else if system == "aarch64-linux" then
-          [ ./hardware/aarch64-generic.nix ]
-        else if system == "riscv64-linux" || system == "riscv32-linux" then
-          [ ./hardware/riscv64-generic.nix ]
-        else
-          [ ./hardware/generic-linux.nix ];
-
-      publicZones = import ./config/zones.nix;
-      deniableZones = import ./config/deniable-zones.nix;
-      # Guests + net SOCKS include deniable VMs; GNOME static launchers stay public-only
-      appZones = publicZones // deniableZones;
-      # ISO/HVM zones are QEMU guests (scripts/iso-run.sh), not NixOS microVMs
-      isIsoZone =
-        zone: (zone.template or "") == "iso" || ((zone.iso or "") != "");
+      system = "x86_64-linux";
+      appZones = import ./config/zones.nix;
+      isIsoZone = zone: (zone.template or "") == "iso" || ((zone.iso or "") != "");
       nixosAppZones = lib.filterAttrs (_: z: !(isIsoZone z)) appZones;
 
-      mkPkgs =
-        system:
-        import nixpkgs {
-          inherit system;
-          config = {
-            allowUnfreePredicate =
-              pkg: builtins.elem (lib.getName pkg) [ "obsidian" ];
-          };
-        };
-
       mkGuest =
-        name: system: modules:
+        name: modules:
         nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = {
@@ -100,110 +43,63 @@
           ++ modules;
         };
 
-      mkHost =
-        system:
-        nixpkgs.lib.nixosSystem {
+      guests = {
+        net = mkGuest "net" [ ./modules/guests/net.nix ];
+        usb = mkGuest "usb" [ ./modules/guests/usb.nix ];
+        voice = mkGuest "voice" [ ./modules/guests/voice.nix ];
+        vault = mkGuest "vault" [ ./modules/guests/vault.nix ];
+      }
+      // lib.mapAttrs (
+        name: zone:
+        mkGuest name [
+          (import ./modules/guests/mk-app-zone.nix {
+            inherit name zone;
+          })
+        ]
+      ) nixosAppZones;
+
+      zonePackages = lib.mapAttrs' (name: guest: {
+        name = "zone-${name}";
+        value = guest.config.microvm.declaredRunner;
+      }) guests;
+    in
+    {
+      inherit appZones;
+
+      nixosConfigurations = {
+        host = nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = {
             inherit self microvm;
             bunkerAppZones = appZones;
-            bunkerPublicZones = publicZones;
-            bunkerDeniableZones = deniableZones;
+            bunkerPublicZones = appZones;
           };
           modules = [
             microvm.nixosModules.host
             ./hosts/bunker/configuration.nix
             ./hosts/bunker/hardware-configuration.nix
+            ./hardware/generic-x86_64.nix
             (
               { ... }:
               {
                 nixpkgs.hostPlatform = system;
               }
             )
-          ]
-          ++ hardwareOverlay system;
+          ];
         };
+      }
+      // guests;
 
-      mkGuests =
-        system:
-        let
-          systemGuests = {
-            net = mkGuest "net" system [ ./modules/guests/net.nix ];
-            usb = mkGuest "usb" system [ ./modules/guests/usb.nix ];
-            voice = mkGuest "voice" system [ ./modules/guests/voice.nix ];
-            vault = mkGuest "vault" system [ ./modules/guests/vault.nix ];
-          };
-          appGuests = lib.mapAttrs (
-            name: zone:
-            mkGuest name system [
-              (import ./modules/guests/mk-app-zone.nix {
-                inherit name zone;
-              })
-            ]
-          ) nixosAppZones;
-        in
-        systemGuests // appGuests;
-
-      mkZonePackages =
-        system:
-        lib.mapAttrs' (name: guest: {
-          name = "zone-${name}";
-          value = guest.config.microvm.declaredRunner;
-        }) (mkGuests system);
-
-      guestsX86 = mkGuests "x86_64-linux";
-
-      guestsPrefixed =
-        system:
-        lib.mapAttrs' (name: value: {
-          name = "${name}-${cpuOf system}";
-          inherit value;
-        }) (mkGuests system);
-
-      nonX86Systems = lib.filter (s: s != "x86_64-linux") supportedSystems;
-
-      allPrefixedGuests = lib.foldl' (
-        acc: system:
-        acc // guestsPrefixed system
-      ) { } nonX86Systems;
-
-      hostConfigs = lib.listToAttrs (
-        map (system: {
-          name = hostAttrName system;
-          value = mkHost system;
-        }) supportedSystems
-      );
-
-      readmeFor =
-        system:
-        (mkPkgs system).writeText "bunker-readme" ''
-          All nixpkgs Linux ISAs (see docs/portability.md).
-          This machine: ${system}
-          Host:  nixos-rebuild switch --flake .#${hostAttrName system}
-          Zones: nix run .#zone-<name>
+      packages.${system} = zonePackages // {
+        default = (import nixpkgs { inherit system; }).writeText "bunker-readme" ''
+          nixos-rebuild switch --flake .#host
+          bunker
         '';
-    in
-    {
-      inherit appZones;
-      # Re-export for docs / scripts
-      bunkerSupportedSystems = supportedSystems;
+      };
 
-      nixosConfigurations = hostConfigs // guestsX86 // allPrefixedGuests;
-
-      packages = lib.genAttrs supportedSystems (
-        system:
-        (mkZonePackages system)
-        // {
-          default = readmeFor system;
-        }
-      );
-
-      apps = lib.genAttrs supportedSystems (
-        system:
-        lib.mapAttrs (name: drv: {
-          type = "app";
-          program = "${drv}/bin/microvm-run";
-        }) (mkZonePackages system)
-      );
+      apps.${system} = lib.mapAttrs (_: drv: {
+        type = "app";
+        program = "${drv}/bin/microvm-run";
+      }) zonePackages;
     };
 }

@@ -1,5 +1,5 @@
-# Emit public zone registry onto the host (/etc/bunker/zones.json + .tsv).
-# Deniable whole-VMs live in deniable-zones.json (not listed here when locked).
+# Emit zone registry onto the host (/etc/bunker/zones.json + .tsv).
+# Invisible zones (invisible=true) stay in zones.json; GNOME hides until sflc unlock.
 # Egress backends: see docs/egress.md (Nym/i2p/Tor run in netVM only).
 {
   lib,

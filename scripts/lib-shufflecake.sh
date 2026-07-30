@@ -10,18 +10,23 @@ bunker_sflc_conf() {
 }
 
 bunker_deniable_json() {
+  # Invisible zones live in zones.json (legacy name kept for scripts).
+  if [[ -n "${BUNKER_ZONES_JSON:-}" && -f "${BUNKER_ZONES_JSON}" ]]; then
+    echo "$BUNKER_ZONES_JSON"
+    return
+  fi
   if [[ -n "${BUNKER_DENIABLE_JSON:-}" && -f "${BUNKER_DENIABLE_JSON}" ]]; then
     echo "$BUNKER_DENIABLE_JSON"
     return
   fi
   local root="${BUNKER_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-  for p in "$root/config/deniable-zones.json" "$HOME/nixos-bunker/config/deniable-zones.json" /etc/bunker/deniable-zones.json; do
+  for p in "$root/config/zones.json" "$HOME/NixOS-bunker/config/zones.json" "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
     [[ -f "$p" ]] && {
       echo "$p"
       return
     }
   done
-  echo "$root/config/deniable-zones.json"
+  echo "$root/config/zones.json"
 }
 
 bunker_sflc_get() {

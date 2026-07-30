@@ -47,12 +47,13 @@ fi
 DJ="$(bunker_deniable_json)"
 MR="$(bunker_sflc_mount_root)"
 
-# Zones with panic:true
+# Zones with panic=wipe (or legacy panic:true)
 mapfile -t PANIC_ZONES < <(python3 - "$DJ" <<'PY'
 import json, sys
 z = json.load(open(sys.argv[1]))
 for name, c in z.items():
-    if c.get("panic") is True:
+    p = c.get("panic")
+    if p is True or p == "wipe":
         print(name)
 PY
 )
@@ -60,9 +61,14 @@ PY
 mapfile -t PANIC_LAYERS < <(python3 - "$DJ" <<'PY'
 import json, sys
 z = json.load(open(sys.argv[1]))
-layers = sorted({int(c.get("layer", 0)) for c in z.values() if c.get("panic") is True})
+layers = sorted({
+    int(c.get("layer") or 0)
+    for c in z.values()
+    if (c.get("panic") is True or c.get("panic") == "wipe") and c.get("invisible")
+})
 for L in layers:
-    print(L)
+    if L:
+        print(L)
 PY
 )
 

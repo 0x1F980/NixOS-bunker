@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
-# Qubes-inspired zone CRUD — edits config/zones.json (AppVMs / Disposables).
-# Templates live in templates/*.nix (edit via: bunker-zone templates | bunker-template-edit).
-# Usage:
-#   bunker-zone list
-#   bunker-zone show <name>
-#   bunker-zone add <name> [--template desktop|iso] [--iso /path.iso] [--kind appvm|disposable|template] …
-#   bunker-zone set <name> key=value   # template|internet|color|voice|metadata|iso|boot|disk|…
-#   bunker-zone rename <old> <new>
-#   bunker-zone rm <name>
-#   bunker-zone apps <name> add|rm <pkg>
-#   bunker-zone usb  <name> add|rm <vid:pid>
-#   bunker-zone templates
-#   bunker-zone colors
+# Zone CRUD — edits config/zones.json
+# Usage: bunker-zone list|show|add|set|rename|rm|apps|usb|templates
 set -euo pipefail
 
 # shellcheck source=lib-common.sh
@@ -19,12 +8,11 @@ source "$(dirname "$0")/lib-common.sh"
 
 ROOT="$(bunker_repo_root)"
 ZONES_JSON="$(bunker_zones_json)"
-COLORS_NIX="$ROOT/config/colors.nix"
 TEMPLATES_DIR="$ROOT/templates"
-[[ -d "$TEMPLATES_DIR" ]] || TEMPLATES_DIR="$HOME/nixos-bunker/templates"
+[[ -d "$TEMPLATES_DIR" ]] || TEMPLATES_DIR="$HOME/NixOS-bunker/templates"
 
 usage() {
-  sed -n '2,14p' "$0" | sed 's/^# //'
+  sed -n '2,3p' "$0" | sed 's/^# //'
 }
 
 need_py() {
@@ -54,25 +42,15 @@ PY
 }
 
 cmd_templates() {
-  echo "NixOS templates (TemplateVM package sets) — edit then: nixos-rebuild switch"
-  local d="$TEMPLATES_DIR"
-  if [[ ! -d "$d" ]]; then
-    echo "No templates dir at $d" >&2
+  local d="$TEMPLATES_DIR" f
+  [[ -d "$d" ]] || {
+    echo "No templates at $d" >&2
     exit 1
-  fi
+  }
   for f in "$d"/*.nix; do
-    [[ -f "$f" ]] || continue
-    local base
-    base="$(basename "$f" .nix)"
-    echo "  ${base} · template    ($f)"
-    echo "    edit: bunker-template-edit $base"
+    [[ -f "$f" ]] && echo "  $(basename "$f" .nix)"
   done
-  echo
-  echo "ISO / HVM guests: template=iso + iso=/path/to.iso (Tails, other live/install media)"
-  echo "  bunker-zone add tails --template iso --iso /var/lib/bunker/isos/tails.iso --disposable"
-  echo "  kind=appvm|disposable|template  boot=iso|disk|both  See docs/iso.md"
-  echo
-  echo "NixOS AppVMs: zones.json \"template\": \"desktop|dev|browser|radio\""
+  echo "ISO: bunker-zone add tails --template iso --iso /path.iso --disposable"
 }
 
 cmd_show() {
@@ -86,13 +64,6 @@ if n not in z:
     raise SystemExit(f"unknown zone: {n}")
 print(json.dumps({n: z[n]}, indent=2))
 PY
-}
-
-cmd_colors() {
-  echo "Qubes-inspired labels: red orange yellow green blue purple black gray"
-  if [[ -f "$COLORS_NIX" ]]; then
-    grep -E '^\s+(red|orange|yellow|green|blue|purple|black|gray)' "$COLORS_NIX" | head -20 || true
-  fi
 }
 
 next_free() {
@@ -269,17 +240,19 @@ for pair in os.environ["ARGS"].split():
             raise SystemExit("kind must be appvm|disposable|template")
         z[n][k] = v
         z[n]["disposable"] = v == "disposable"
-    elif k in ("template", "ip", "mac", "color", "internet", "iso", "boot", "disk", "display"):
+    elif k in ("template", "ip", "mac", "color", "internet", "iso", "boot", "disk", "display", "panic"):
+        if k == "panic" and v not in ("keep", "lock", "wipe"):
+            raise SystemExit("panic must be keep|lock|wipe")
         z[n][k] = v
         if k == "template" and v == "iso" and "iso" not in z[n]:
             z[n]["iso"] = ""
         if k == "iso" and v:
             z[n]["template"] = "iso"
-    elif k in ("diskGb", "disk_gb"):
-        z[n]["diskGb"] = int(v)
-    elif k == "voice":
-        # on/off only — engine is global on voiceVM
-        truth = {"true", "1", "on", "yes", "anon", "chimera"}
+    elif k in ("diskGb", "disk_gb", "layer"):
+        key = "diskGb" if k in ("diskGb", "disk_gb") else "layer"
+        z[n][key] = None if v in ("", "null", "none") else int(v)
+    elif k in ("voice", "metadata", "invisible"):
+        truth = {"true", "1", "on", "yes"}
         falsy = {"false", "0", "off", "no", "none", ""}
         vl = v.lower()
         if vl in truth:
@@ -287,18 +260,7 @@ for pair in os.environ["ARGS"].split():
         elif vl in falsy:
             z[n][k] = False
         else:
-            raise SystemExit("voice must be on|off (true|false)")
-    elif k == "metadata":
-        # on/off — ships mat2 (EXIF stripper) into the zone
-        truth = {"true", "1", "on", "yes", "mat2"}
-        falsy = {"false", "0", "off", "no", "none", ""}
-        vl = v.lower()
-        if vl in truth:
-            z[n][k] = True
-        elif vl in falsy:
-            z[n][k] = False
-        else:
-            raise SystemExit("metadata must be on|off (true|false)")
+            raise SystemExit(f"{k} must be on|off")
     else:
         raise SystemExit(f"unsupported key: {k}")
 json.dump(z, open(path, "w"), indent=2)
@@ -339,7 +301,7 @@ if new in z:
 z[new] = z.pop(old)
 json.dump(z, open(path, "w"), indent=2)
 print(f"renamed {old} → {new}")
-print("Next: sudo nixos-rebuild switch --flake .#host  # icons + NixOS cursor")
+print("Next: sudo nixos-rebuild switch --flake .#host")
 print(json.dumps({new: z[new]}, indent=2))
 PY
 }
@@ -407,7 +369,6 @@ main() {
     apps) cmd_apps "${1:?name}" "${2:?add|rm}" "${3:?pkg}" ;;
     usb) cmd_usb "${1:?name}" "${2:?add|rm}" "${3:?vid:pid}" ;;
     templates | template) cmd_templates ;;
-    colors) cmd_colors ;;
     -h | --help | "") usage ;;
     *)
       echo "unknown: $cmd" >&2

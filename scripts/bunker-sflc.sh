@@ -13,9 +13,6 @@ source "$(dirname "$0")/lib-common.sh"
 # shellcheck source=lib-shufflecake.sh
 source "$(dirname "$0")/lib-shufflecake.sh"
 
-ROOT="$(bunker_repo_root)"
-COLORS_NIX="$ROOT/config/colors.nix"
-
 ensure_runtime() {
   mkdir -p /run/bunker/xdg/applications "$(bunker_sflc_mount_root)" /var/lib/bunker/sflc-keys
   chmod 700 /var/lib/bunker/sflc-keys 2>/dev/null || true
@@ -50,7 +47,7 @@ unmark_unlocked() {
 cmd_status() {
   ensure_runtime
   echo "mode=$(bunker_sflc_mode) device=$(bunker_sflc_device) mount=$(bunker_sflc_mount_root)"
-  echo "deniable=$(bunker_deniable_json)"
+  echo "zones=$(bunker_deniable_json)"
   echo -n "unlocked_layers: "
   if [[ -s "$(bunker_unlocked_layers_file)" ]]; then
     tr '\n' ' ' <"$(bunker_unlocked_layers_file)"
@@ -130,14 +127,19 @@ cmd_unlock() {
   # Never store plaintext passphrase
   unset pass
   mark_unlocked "$layer"
-  # Link all deniable zones on this layer (and lower if we ever nest — for now exact layer)
+  # Link invisible zones on this layer
   python3 - "$(bunker_deniable_json)" "$layer" <<'PY' | while read -r name; do
 import json, sys
 z = json.load(open(sys.argv[1]))
 layer = int(sys.argv[2])
 for name, c in z.items():
-    if int(c.get("layer", -1)) == layer:
-        print(name)
+    if not c.get("invisible"):
+        continue
+    try:
+        if int(c.get("layer") or -1) == layer:
+            print(name)
+    except (TypeError, ValueError):
+        pass
 PY
     link_zone "$name" "$layer"
   done
@@ -153,8 +155,9 @@ cmd_lock() {
     names="$(python3 - "$(bunker_deniable_json)" <<'PY'
 import json, sys
 z = json.load(open(sys.argv[1]))
-for name in z:
-    print(name)
+for name, c in z.items():
+    if c.get("invisible"):
+        print(name)
 PY
 )"
     while read -r name; do
@@ -173,8 +176,13 @@ import json, sys
 z = json.load(open(sys.argv[1]))
 layer = int(sys.argv[2])
 for name, c in z.items():
-    if int(c.get("layer", -1)) == layer:
-        print(name)
+    if not c.get("invisible"):
+        continue
+    try:
+        if int(c.get("layer") or -1) == layer:
+            print(name)
+    except (TypeError, ValueError):
+        pass
 PY
 )"
     while read -r name; do
@@ -190,38 +198,15 @@ PY
 }
 
 write_desktop() {
-  local name="$1" typ="$2" color="$3" template="$4"
-  local letter desk icon hex
-  letter="$(printf '%s' "$name" | cut -c1 | tr '[:lower:]' '[:upper:]')"
-  desk="/run/bunker/xdg/applications/qube-deniable-${name}.desktop"
-  icon="/run/bunker/xdg/icons/qube-deniable-${name}.svg"
-  mkdir -p /run/bunker/xdg/icons
-  case "$color" in
-    red) hex="#cc0000" ;;
-    orange) hex="#f57900" ;;
-    yellow) hex="#edd400" ;;
-    green) hex="#73d216" ;;
-    blue) hex="#3465a4" ;;
-    purple) hex="#75507b" ;;
-    black) hex="#2e3436" ;;
-    *) hex="#888a85" ;;
-  esac
-  cat >"$icon" <<EOF
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
-  <rect width="128" height="128" rx="16" fill="${hex}"/>
-  <text x="64" y="78" text-anchor="middle" font-size="48"
-        font-family="sans-serif" fill="#ffffff">${letter}</text>
-</svg>
-EOF
+  local name="$1" typ="$2"
+  local desk="/run/bunker/xdg/applications/qube-invisible-${name}.desktop"
   cat >"$desk" <<EOF
 [Desktop Entry]
 Type=Application
 Name=${name} · ${typ}
-Comment=deniable layer · template=${template} · color=${color}
 Exec=bunker-zone-start ${name}
-Icon=${icon}
-Categories=$([[ "$typ" == "disposable" ]] && echo X-Qube-Disposable || echo X-Qube-AppVM);System
-Keywords=qube;zone;deniable;
+Icon=applications-system
+Categories=X-Qube-AppVM;System
 Terminal=false
 EOF
 }
@@ -237,26 +222,28 @@ z = json.load(open(sys.argv[1]))
 unlocked = {x for x in os.environ.get("UNLOCKED", "").split(",") if x != ""}
 out = []
 for name, c in sorted(z.items()):
-    layer = str(c.get("layer", ""))
+    if not c.get("invisible"):
+        continue
+    layer = str(c.get("layer") or "")
     if layer in unlocked:
         out.append(name)
 print(json.dumps(out))
 PY
   )"
   printf '%s\n' "$visible_json" >"$(bunker_visible_zones_file)"
-  rm -f /run/bunker/xdg/applications/qube-deniable-*.desktop
-  python3 - "$(bunker_deniable_json)" "$(bunker_visible_zones_file)" <<'PY' | while IFS=$'\t' read -r name typ template color; do
+  rm -f /run/bunker/xdg/applications/qube-invisible-*.desktop
+  python3 - "$(bunker_deniable_json)" "$(bunker_visible_zones_file)" <<'PY' | while IFS=$'\t' read -r name typ; do
 import json, sys
 z = json.load(open(sys.argv[1]))
 vis = set(json.load(open(sys.argv[2])))
 for name in sorted(vis):
     c = z.get(name, {})
     typ = c.get("kind") or ("disposable" if c.get("disposable") else "appvm")
-    print(f"{name}\t{typ}\t{c.get('template','desktop')}\t{c.get('color','gray')}")
+    print(f"{name}\t{typ}")
 PY
-    write_desktop "$name" "$typ" "$color" "$template"
+    write_desktop "$name" "$typ"
   done
-  echo "visible zones: $visible_json"
+  echo "visible invisible-zones: $visible_json"
 }
 
 cmd_path() {
@@ -265,9 +252,9 @@ cmd_path() {
 import json, sys
 z = json.load(open(sys.argv[1]))
 n = sys.argv[2]
-if n not in z:
-    raise SystemExit(f"unknown deniable zone: {n}")
-print(z[n].get("layer", ""))
+if n not in z or not z[n].get("invisible"):
+    raise SystemExit(f"unknown invisible zone: {n}")
+print(z[n].get("layer") or "")
 PY
 }
 

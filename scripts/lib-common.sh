@@ -14,7 +14,7 @@ bunker_zones_json() {
   fi
   local root="${BUNKER_ROOT:-$(bunker_repo_root)}"
   local p
-  for p in "$root/config/zones.json" "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
+  for p in "$root/config/zones.json" "$HOME/NixOS-bunker/config/zones.json" "$HOME/nixos-bunker/config/zones.json" /etc/bunker/zones.json; do
     if [[ -f "$p" ]]; then
       echo "$p"
       return

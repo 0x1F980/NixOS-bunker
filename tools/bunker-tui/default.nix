@@ -4,13 +4,13 @@
 }:
 
 rustPlatform.buildRustPackage {
-  pname = "bunker-panic-tui";
+  pname = "bunker-tui";
   version = "0.1.0";
   src = ./.;
   cargoLock.lockFile = ./Cargo.lock;
   meta = {
-    description = "Panic button ratatui for deniable zone key wipe";
-    mainProgram = "bunker-panic-tui";
+    description = "Single host operator TUI for bunker zones";
+    mainProgram = "bunker-tui";
     license = lib.licenses.mit;
   };
 }

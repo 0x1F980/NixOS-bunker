@@ -1,8 +1,8 @@
 [package]
-name = "bunker-zones-tui"
+name = "bunker-tui"
 version = "0.1.0"
 edition = "2021"
-description = "Minimal ratatui UI for AppVM / Disposable CRUD (zones.json)"
+description = "Single host operator TUI: brokers, zones, panic"
 license = "MIT"
 
 [dependencies]

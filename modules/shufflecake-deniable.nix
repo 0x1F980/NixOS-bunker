@@ -1,6 +1,5 @@
-# Shufflecake deniable zone-VMs + panic support (host).
-# Public zones: config/zones.json. Hidden whole VMs: config/deniable-zones.json.
-# Research-grade: software presence is not deniable. See docs/deniable.md.
+# Shufflecake invisible zones + panic (host).
+# Invisible zones: zones.json invisible=true, layer=N, panic=keep|lock|wipe.
 {
   config,
   lib,
@@ -17,15 +16,11 @@ in
   boot.kernelModules = lib.mkIf (sflcPkg != null) [ "dm-sflc" ];
 
   environment.etc."bunker/shufflecake.json".source = ../config/shufflecake.json;
-  environment.etc."bunker/deniable-zones.json".source = ../config/deniable-zones.json;
 
-  # Default panic passphrase: changeme — replace PANIC_HASH after first boot
-  # printf %s 'changeme' | sha256sum
   environment.etc."bunker/panic.conf".text = ''
     PANIC_HASH=057ba03d6c44104863dc7361fe4578965d1887360f90a0895882e58a6248fc86
   '';
 
-  # Runtime XDG path for deniable zone launchers (empty when layers locked)
   systemd.tmpfiles.rules = [
     "d /run/bunker 0755 root root -"
     "d /run/bunker/xdg 0755 root root -"
