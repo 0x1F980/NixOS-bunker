@@ -191,16 +191,35 @@ PY
 
 write_desktop() {
   local name="$1" typ="$2" color="$3" template="$4"
-  local letter desk
+  local letter desk icon hex
   letter="$(printf '%s' "$name" | cut -c1 | tr '[:lower:]' '[:upper:]')"
   desk="/run/bunker/xdg/applications/qube-deniable-${name}.desktop"
+  icon="/run/bunker/xdg/icons/qube-deniable-${name}.svg"
+  mkdir -p /run/bunker/xdg/icons
+  case "$color" in
+    red) hex="#cc0000" ;;
+    orange) hex="#f57900" ;;
+    yellow) hex="#edd400" ;;
+    green) hex="#73d216" ;;
+    blue) hex="#3465a4" ;;
+    purple) hex="#75507b" ;;
+    black) hex="#2e3436" ;;
+    *) hex="#888a85" ;;
+  esac
+  cat >"$icon" <<EOF
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
+  <rect width="128" height="128" rx="16" fill="${hex}"/>
+  <text x="64" y="78" text-anchor="middle" font-size="48"
+        font-family="sans-serif" fill="#ffffff">${letter}</text>
+</svg>
+EOF
   cat >"$desk" <<EOF
 [Desktop Entry]
 Type=Application
 Name=${name} · ${typ}
-Comment=deniable layer · template=${template}
+Comment=deniable layer · template=${template} · color=${color}
 Exec=bunker-zone-start ${name}
-Icon=application-x-executable
+Icon=${icon}
 Categories=$([[ "$typ" == "disposable" ]] && echo X-Qube-Disposable || echo X-Qube-AppVM);System
 Keywords=qube;zone;deniable;
 Terminal=false

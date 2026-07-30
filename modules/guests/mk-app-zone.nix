@@ -21,8 +21,20 @@ let
   colorName = zone.color or "gray";
   color = colors.${colorName} or colors.gray;
   internet = zone.internet or "nym";
+  metadata = zone.metadata or false;
   extraAppNames = zone.apps or [ ];
   extraApps = map (n: pkgs.${n}) extraAppNames;
+  metaPkgs = lib.optionals metadata [
+    pkgs.mat2
+    (pkgs.writeShellScriptBin "bunker-mat" ''
+      exec ${pkgs.mat2}/bin/mat2 --inplace "$@"
+    '')
+  ];
+  cursorThemeName = "bunker-${colorName}";
+  cursorPkg = import ./zone-cursor.nix {
+    inherit pkgs colorName;
+    hex = color.hex;
+  };
   # Port offsets on netVM: nym=+0, i2p=+1000, tor=+2000
   socksPort =
     if socks == null then
@@ -62,32 +74,50 @@ in
     }
   ];
 
-  # Extra packages declared in zones.json "apps": ["htop", "vim", ...]
-  environment.systemPackages = extraApps ++ [
+  # Extra packages + zone-colored mouse cursor (XCursor)
+  # metadata=true → mat2 (Metadata Anonymisation Toolkit) + bunker-mat wrapper
+  environment.systemPackages = extraApps ++ metaPkgs ++ [
+    cursorPkg
     (pkgs.writeShellScriptBin "bunker-zone-banner" ''
       printf '\033]11;%s\007' '${color.bg}' 2>/dev/null || true
       printf '\033]10;%s\007' '${color.hex}' 2>/dev/null || true
       export PS1='\[\e[${color.ansi}m\][bunker:${name}]\[\e[0m\] \u@\h:\w\$ '
-      echo "zone=${name} color=${colorName} internet=${internet}"
+      echo "zone=${name} color=${colorName} internet=${internet} metadata=${if metadata then "on" else "off"} cursor=${cursorThemeName}"
     '')
   ];
 
-  # Colorful getty / shell hint
+  # Colorful getty / shell hint + cursor env for GUI apps
   environment.etc."profile.d/bunker-zone-color.sh".text = ''
     # Qubes-inspired zone label colors
     export BUNKER_ZONE='${name}'
     export BUNKER_ZONE_COLOR='${colorName}'
     export BUNKER_ZONE_HEX='${color.hex}'
+    export XCURSOR_THEME='${cursorThemeName}'
+    export XCURSOR_SIZE=24
     if [ -n "$PS1" ]; then
       printf '\033]11;${color.bg}\007' 2>/dev/null || true
       PS1='\[\e[${color.ansi}m\][${name}]\[\e[0m\] \u@\h:\w\$ '
     fi
   '';
 
+  environment.etc."gtk-3.0/settings.ini".text = ''
+    [Settings]
+    gtk-cursor-theme-name=${cursorThemeName}
+    gtk-cursor-theme-size=24
+  '';
+
+  environment.etc."gtk-4.0/settings.ini".text = ''
+    [Settings]
+    gtk-cursor-theme-name=${cursorThemeName}
+    gtk-cursor-theme-size=24
+  '';
+
   environment.variables = {
     BUNKER_ZONE = name;
     BUNKER_ZONE_COLOR = colorName;
     BUNKER_ZONE_HEX = color.hex;
+    XCURSOR_THEME = cursorThemeName;
+    XCURSOR_SIZE = "24";
   }
   // lib.optionalAttrs useProxy {
     ALL_PROXY = "socks5h://10.0.0.1:${toString socksPort}";
@@ -101,6 +131,9 @@ in
   }
   // lib.optionalAttrs (internet == "none") {
     BUNKER_INTERNET = "none";
+  }
+  // lib.optionalAttrs metadata {
+    BUNKER_METADATA = "1";
   };
 
   # internet=none → only talk to bunker LAN (no forward hope without netVM SOCKS anyway)
@@ -113,10 +146,11 @@ in
   );
 
   environment.etc."bunker/zone.json".text = builtins.toJSON {
-    inherit name ip mac socks disposable mem vcpu internet;
+    inherit name ip mac socks disposable mem vcpu internet metadata;
     template = zone.template;
     color = colorName;
     colorHex = color.hex;
+    cursorTheme = cursorThemeName;
     usb = zone.usb or [ ];
     apps = extraAppNames;
   };

@@ -1,4 +1,4 @@
-//! Minimal ratatui app: net + USB + voice (on/off) 1→many defaults in zones.json
+//! Minimal ratatui app: net + USB + voice + metadata (mat2) defaults in zones.json
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
@@ -26,6 +26,7 @@ enum Screen {
     Net,
     Usb,
     Voice,
+    Meta,
     Help,
 }
 
@@ -43,15 +44,23 @@ struct App {
 
 const NET_MODES: &[&str] = &["nym", "i2p", "tor", "none"];
 
-fn voice_on(z: &Value) -> bool {
-    match z.get("voice") {
+fn bool_flag(z: &Value, key: &str) -> bool {
+    match z.get(key) {
         Some(Value::Bool(b)) => *b,
         Some(Value::String(s)) => {
             let s = s.to_lowercase();
-            matches!(s.as_str(), "on" | "true" | "1" | "anon" | "chimera")
+            matches!(s.as_str(), "on" | "true" | "1" | "yes" | "anon" | "chimera")
         }
         _ => false,
     }
+}
+
+fn voice_on(z: &Value) -> bool {
+    bool_flag(z, "voice")
+}
+
+fn metadata_on(z: &Value) -> bool {
+    bool_flag(z, "metadata")
 }
 
 impl App {
@@ -74,7 +83,7 @@ impl App {
             screen: Screen::Home,
             zone_names,
             list,
-            status: "net + usb + voice brokers (1→many). Edit defaults, then save.".into(),
+            status: "net + usb + voice + metadata defaults. Edit, then save.".into(),
             dirty: false,
             usb_input: String::new(),
             input_mode: false,
@@ -128,6 +137,24 @@ impl App {
         self.dirty = true;
         self.status = format!(
             "{name}: voice → {}  (anonymized mic via voiceVM)",
+            if on { "on" } else { "off" }
+        );
+    }
+
+    fn toggle_metadata(&mut self) {
+        let Some(name) = self.selected_zone().map(|s| s.to_string()) else {
+            return;
+        };
+        let on = {
+            let z = self.zones.get(&name).unwrap();
+            !metadata_on(z)
+        };
+        let z = self.zones.get_mut(&name).unwrap();
+        let obj = z.as_object_mut().unwrap();
+        obj.insert("metadata".into(), json!(on));
+        self.dirty = true;
+        self.status = format!(
+            "{name}: metadata → {}  (mat2 EXIF stripper in zone)",
             if on { "on" } else { "off" }
         );
     }
@@ -220,10 +247,11 @@ fn ui(f: &mut Frame, app: &mut App) {
         .split(f.area());
 
     let title = match app.screen {
-        Screen::Home => "Bunker brokers — netVM + usbVM + voiceVM (1→many)",
+        Screen::Home => "Bunker brokers — net / usb / voice / metadata defaults",
         Screen::Net => "NET defaults — which egress each zone uses",
         Screen::Usb => "USB / I/O defaults — devices auto-attached via usbVM",
         Screen::Voice => "VOICE defaults — anonymized mic on/off per zone",
+        Screen::Meta => "META defaults — mat2 EXIF/metadata stripper on/off",
         Screen::Help => "Help",
     };
     let dirty = if app.dirty { "  [UNSAVED]" } else { "" };
@@ -236,7 +264,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     match app.screen {
         Screen::Home => draw_home(f, chunks[1], app),
-        Screen::Net | Screen::Usb | Screen::Voice => draw_zones(f, chunks[1], app),
+        Screen::Net | Screen::Usb | Screen::Voice | Screen::Meta => draw_zones(f, chunks[1], app),
         Screen::Help => draw_help(f, chunks[1]),
     }
 
@@ -245,7 +273,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     } else {
         match app.screen {
             Screen::Home => {
-                "1 net  2 usb  3 voice  n/u/v start brokers  w save  q quit  ?=help".into()
+                "1 net  2 usb  3 voice  4 meta  n/u/v start  w save  q quit  ?=help".into()
             }
             Screen::Net => {
                 "↑↓ zone  Space/Enter cycle nym→i2p→tor→none  w save  Esc home".into()
@@ -253,6 +281,9 @@ fn ui(f: &mut Frame, app: &mut App) {
             Screen::Usb => "↑↓ zone  a add vid:pid  d delete last  w save  Esc home".into(),
             Screen::Voice => {
                 "↑↓ zone  Space/Enter toggle on/off  a attach now  w save  Esc home".into()
+            }
+            Screen::Meta => {
+                "↑↓ zone  Space/Enter toggle mat2 on/off  w save  Esc home".into()
             }
             Screen::Help => "Esc back".into(),
         }
@@ -304,6 +335,12 @@ fn draw_home(f: &mut Frame, area: Rect, app: &App) {
         )),
         Line::from("    Mic anonymizer (Chimera/sox). Zone voice= on | off"),
         Line::from(""),
+        Line::from(Span::styled(
+            "  metadata (mat2)",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        )),
+        Line::from("    EXIF/metadata stripper in-zone. Zone metadata= on | off"),
+        Line::from(""),
         Line::from(format!("  zones.json: {}", app.zones_path.display())),
         Line::from(format!("  {} app zones loaded", app.zone_names.len())),
     ];
@@ -319,6 +356,9 @@ fn draw_help(f: &mut Frame, area: Rect) {
         Line::from("USB: many zones may list a device; live attach = one holder."),
         Line::from("Voice: on = zone uses voiceVM anonymized mic; off = no tunnel."),
         Line::from("Engine (Chimera/sox) runs only on voiceVM — not chosen per zone."),
+        Line::from("Meta: on = ship mat2 + bunker-mat into the zone (strip EXIF etc.)."),
+        Line::from("ISO/HVM zones ([ISO] tag): net+usb apply; voice/mat2 are NixOS-only."),
+        Line::from("CRUD for ISO: zones · service — A/I add ISO, k=kind appvm|disposable|template."),
         Line::from("After save: sudo nixos-rebuild switch --flake .#host (if guests changed)"),
         Line::from("Then: bunker-zone-start <zone>"),
     ];
@@ -347,10 +387,25 @@ fn draw_zones(f: &mut Frame, area: Rect, app: &mut App) {
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "-".into());
             let voice = if voice_on(z) { "on" } else { "off" };
+            let meta = if metadata_on(z) { "on" } else { "off" };
+            let iso = z.get("template").and_then(|x| x.as_str()) == Some("iso")
+                || z
+                    .get("iso")
+                    .and_then(|x| x.as_str())
+                    .map(|s| !s.is_empty())
+                    .unwrap_or(false);
+            let tag = if iso { " [ISO]" } else { "" };
             let line = match app.screen {
-                Screen::Net => format!("{name:<12} internet={net}"),
-                Screen::Usb => format!("{name:<12} usb=[{usb}]"),
-                Screen::Voice => format!("{name:<12} voice={voice}"),
+                Screen::Net => format!("{name:<12} internet={net}{tag}"),
+                Screen::Usb => format!("{name:<12} usb=[{usb}]{tag}"),
+                Screen::Voice => format!(
+                    "{name:<12} voice={}{tag}",
+                    if iso { "n/a" } else { voice }
+                ),
+                Screen::Meta => format!(
+                    "{name:<12} metadata={}{tag}",
+                    if iso { "n/a" } else { meta }
+                ),
                 _ => name.clone(),
             };
             ListItem::new(line)
@@ -361,6 +416,7 @@ fn draw_zones(f: &mut Frame, area: Rect, app: &mut App) {
         Screen::Net => "zones → netVM",
         Screen::Usb => "zones → usbVM",
         Screen::Voice => "zones → voiceVM (anonymized mic)",
+        Screen::Meta => "zones → mat2 (EXIF / metadata strip)",
         _ => "zones",
     };
     let list = List::new(items)
@@ -467,6 +523,7 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                 KeyCode::Char('1') => app.screen = Screen::Net,
                 KeyCode::Char('2') => app.screen = Screen::Usb,
                 KeyCode::Char('3') => app.screen = Screen::Voice,
+                KeyCode::Char('4') => app.screen = Screen::Meta,
                 KeyCode::Char('n') => app.start_infra("net"),
                 KeyCode::Char('u') => app.start_infra("usb"),
                 KeyCode::Char('v') => app.start_infra("voice"),
@@ -521,6 +578,19 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                 KeyCode::Enter | KeyCode::Char(' ') => app.toggle_voice(),
                 KeyCode::Char('a') => app.attach_voice_now(),
                 KeyCode::Char('v') => app.start_infra("voice"),
+                _ => {}
+            },
+            Screen::Meta => match key.code {
+                KeyCode::Esc => app.screen = Screen::Home,
+                KeyCode::Char('q') => break,
+                KeyCode::Char('w') => {
+                    if let Err(e) = app.save() {
+                        app.status = format!("save failed: {e}");
+                    }
+                }
+                KeyCode::Down | KeyCode::Char('j') => move_list(app, 1),
+                KeyCode::Up | KeyCode::Char('k') => move_list(app, -1),
+                KeyCode::Enter | KeyCode::Char(' ') => app.toggle_metadata(),
                 _ => {}
             },
             Screen::Help => {

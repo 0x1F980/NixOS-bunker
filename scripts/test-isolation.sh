@@ -124,6 +124,31 @@ check "voice docs + attach scripts" \
   test -f "$ROOT/scripts/voice-attach.sh" && \
   grep -q '"voice"' "$ROOT/config/zones.json" && \
   grep -q 'voice=on\|voice on/off\|Voice defaults' "$ROOT/docs/voice.md"
+check "metadata/mat2 on/off in defaults broker TUI" \
+  grep -q 'Screen::Meta\|toggle_metadata\|mat2' "$ROOT/tools/bunker-broker-tui/src/main.rs" && \
+  grep -q 'metadata' "$ROOT/modules/guests/mk-app-zone.nix" && \
+  grep -q 'pkgs.mat2' "$ROOT/modules/guests/mk-app-zone.nix" && \
+  grep -q '"metadata"' "$ROOT/config/zones.json" && \
+  test -f "$ROOT/docs/metadata.md"
+check "ISO/HVM zones via iso-run + template=iso" \
+  test -f "$ROOT/scripts/iso-run.sh" && \
+  grep -q 'bunker_zone_is_iso\|iso-run' "$ROOT/scripts/zone-start.sh" && \
+  grep -q 'isIsoZone\|nixosAppZones' "$ROOT/flake.nix" && \
+  grep -q 'template iso\|--iso\|SetIso\|template=iso' "$ROOT/scripts/bunker-zone.sh" && \
+  test -f "$ROOT/docs/iso.md"
+check "zones/deniable TUI first-class ISO CRUD" \
+  grep -q 'AddIsoName\|add_iso_zone\|ISO/HVM' "$ROOT/tools/bunker-zones-tui/src/main.rs" && \
+  grep -q 'AddIsoName\|add_iso_zone' "$ROOT/tools/bunker-deniable-tui/src/main.rs" && \
+  grep -q '\[ISO\]' "$ROOT/tools/bunker-broker-tui/src/main.rs"
+check "zones TUI RAM/vCPU allocation" \
+  grep -q 'cycle_mem\|cycle_vcpu\|SetMem\|SetVcpu' "$ROOT/tools/bunker-zones-tui/src/main.rs" && \
+  grep -q 'cycle_mem\|SetMem' "$ROOT/tools/bunker-deniable-tui/src/main.rs"
+check "zone color rename + NixOS guest cursor" \
+  grep -q 'rename_zone\|InputKind::Rename\|color_hex' "$ROOT/tools/bunker-zones-tui/src/main.rs" && \
+  grep -q 'cmd_rename\|rename' "$ROOT/scripts/bunker-zone.sh" && \
+  test -f "$ROOT/modules/guests/zone-cursor.nix" && \
+  grep -q 'XCURSOR_THEME\|zone-cursor' "$ROOT/modules/guests/mk-app-zone.nix" && \
+  test -f "$ROOT/docs/colors.md"
 check "qube folders AppVMs Disposables Templates" \
   grep -q 'X-Qube-AppVM' "$ROOT/modules/zones-ui.nix" && \
   grep -q 'X-Qube-Template' "$ROOT/modules/zones-ui.nix" && \

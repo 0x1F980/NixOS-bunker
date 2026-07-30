@@ -100,7 +100,8 @@ Launcher:
 CLI CRUD zones, apps, USB defaults, colors, templates.
 .TP
 .B bunker-broker
-Ratatui net/usb broker defaults. Launcher:
+Ratatui net/usb/voice/metadata defaults (keys 1–4; mat2 when metadata=on).
+Launcher:
 .BR "defaults · service" .
 .TP
 .B bunker-zone-start
@@ -146,7 +147,11 @@ plus CLI
 .BR ddrescue ,
 .BR testdisk ,
 .BR rsync ,
-.BR borg .
+.BR borg ,
+.BR mat2
+/
+.BR bunker-mat
+(EXIF strip).
 Prefer
 .B admin
 (sudo) for destructive disk work.
@@ -166,6 +171,9 @@ Short Qubes-like model reminder.
 .SH SEE ALSO
 .IR docs/egress.md ,
 .IR docs/usb.md ,
+.IR docs/voice.md ,
+.IR docs/metadata.md ,
+.IR docs/iso.md ,
 .IR docs/deniable.md ,
 .IR docs/portability.md ,
 .IR docs/nym-bootstrap.md ,

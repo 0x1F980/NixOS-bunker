@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Start bunker microVM zones on-demand.
+# Start bunker microVM zones on-demand (NixOS) or ISO/HVM zones (QEMU).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-common.sh
+source "$ROOT/scripts/lib-common.sh"
 SYSTEM_ZONES=(net usb voice vault)
 TARGET="${1:-}"
 
 usage() {
   echo "Usage: $0 [all|net|usb|vault|<app-zone>]"
   echo "  App zones come from config/zones.nix (see /etc/bunker/zones.tsv on host)."
-  echo "  Runs: nix run \"\$ROOT#zone-<name>\"  (native arch: x86_64 or aarch64)"
+  echo "  NixOS: nix run \"\$ROOT#zone-<name>\""
+  echo "  ISO/HVM (template=iso): scripts/iso-run.sh <name>"
 }
 
 list_app_zones() {
@@ -65,30 +68,45 @@ start_one() {
   local z="$1"
   require_deniable_visible "$z"
   ensure_bridge
-  echo "==> starting zone '$z' via nix run .#zone-$z"
-  if command -v nix >/dev/null 2>&1; then
-    nix run "$ROOT#zone-$z" &
+  if bunker_zone_is_iso "$z"; then
+    echo "==> starting ISO/HVM zone '$z' via iso-run.sh"
+    "$ROOT/scripts/iso-run.sh" "$z" &
     echo "started pid $!"
     sleep 2
     ensure_bridge
-    # Attach USB defaults from zones.json
-    if [[ -f /etc/bunker/zones.tsv ]] || [[ -f "$ROOT/config/zones.json" ]]; then
-      local usbs=""
-      if [[ -f /etc/bunker/zones.tsv ]]; then
-        usbs="$(awk -F'\t' -v n="$z" '$1==n {print $8}' /etc/bunker/zones.tsv || true)"
-      fi
-      if [[ -z "$usbs" || "$usbs" == "-" ]] && command -v python3 >/dev/null; then
-        usbs="$(python3 -c "import json;z=json.load(open('$ROOT/config/zones.json'));print(','.join(z.get('$z',{}).get('usb') or []))" 2>/dev/null || true)"
-      fi
-      if [[ -n "$usbs" && "$usbs" != "-" ]]; then
-        IFS=',' read -ra DEVS <<<"$usbs"
-        for d in "${DEVS[@]}"; do
-          [[ -z "$d" ]] && continue
-          echo "==> usb default attach $d -> $z"
-          "$ROOT/scripts/usb-attach.sh" "$z" "$d" || echo "WARN: usb attach $d failed (VM may still be booting)"
-        done
-      fi
-      # Voice anonymizer on/off (voiceVM 10.0.0.3)
+  else
+    echo "==> starting zone '$z' via nix run .#zone-$z"
+    if command -v nix >/dev/null 2>&1; then
+      nix run "$ROOT#zone-$z" &
+      echo "started pid $!"
+      sleep 2
+      ensure_bridge
+    elif systemctl list-unit-files "microvm@$z.service" >/dev/null 2>&1; then
+      systemctl start "microvm@$z.service"
+    else
+      echo "ERROR: nix not found and no microvm@$z.service" >&2
+      exit 1
+    fi
+  fi
+  # Attach USB defaults from zones.json (NixOS usbip or ISO direct QMP)
+  if [[ -f /etc/bunker/zones.tsv ]] || [[ -f "$ROOT/config/zones.json" ]]; then
+    local usbs=""
+    if [[ -f /etc/bunker/zones.tsv ]]; then
+      usbs="$(awk -F'\t' -v n="$z" '$1==n {print $8}' /etc/bunker/zones.tsv || true)"
+    fi
+    if [[ -z "$usbs" || "$usbs" == "-" ]] && command -v python3 >/dev/null; then
+      usbs="$(python3 -c "import json;z=json.load(open('$ROOT/config/zones.json'));print(','.join(z.get('$z',{}).get('usb') or []))" 2>/dev/null || true)"
+    fi
+    if [[ -n "$usbs" && "$usbs" != "-" ]]; then
+      IFS=',' read -ra DEVS <<<"$usbs"
+      for d in "${DEVS[@]}"; do
+        [[ -z "$d" ]] && continue
+        echo "==> usb default attach $d -> $z"
+        "$ROOT/scripts/usb-attach.sh" "$z" "$d" || echo "WARN: usb attach $d failed (VM may still be booting)"
+      done
+    fi
+    # Voice anonymizer — NixOS zones only (ISO guests rarely speak Pulse/ssh)
+    if ! bunker_zone_is_iso "$z"; then
       local von=""
       if command -v python3 >/dev/null; then
         von="$(python3 -c "
@@ -111,11 +129,6 @@ print('1' if v in (True,'on','true','1','anon','chimera') else '0')
         "$ROOT/scripts/voice-attach.sh" "$z" || echo "WARN: voice attach failed (is voiceVM up?)"
       fi
     fi
-  elif systemctl list-unit-files "microvm@$z.service" >/dev/null 2>&1; then
-    systemctl start "microvm@$z.service"
-  else
-    echo "ERROR: nix not found and no microvm@$z.service" >&2
-    exit 1
   fi
 }
 

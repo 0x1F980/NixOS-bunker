@@ -9,7 +9,7 @@ rustPlatform.buildRustPackage {
   src = ./.;
   cargoLock.lockFile = ./Cargo.lock;
   meta = {
-    description = "Minimal ratatui UI for netVM/usbVM/voiceVM 1→many zone defaults";
+    description = "Minimal ratatui UI for net/usb/voice/metadata zone defaults";
     mainProgram = "bunker-broker-tui";
     license = lib.licenses.mit;
   };

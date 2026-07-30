@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# USB 1→many via usbVM broker (usbip), same pattern as netVM for network.
-#
-# Flow:
-#   1) Host QMP attaches physical device ONLY to usbVM (10.0.0.2)
-#   2) usbVM binds/exports with usbip
-#   3) Target zone imports via usbip (many zones can request; one holds live)
+# USB attach: NixOS zones via usbVM+usbip; ISO/HVM zones via direct QMP usb-host.
 #
 # Usage: bunker-usb-attach <zone> <vendorId:productId>
 set -euo pipefail
@@ -20,7 +15,8 @@ USB_IP="10.0.0.2"
 
 usage() {
   echo "Usage: $0 <zone> <vendorId:productId>"
-  echo "  Broker: usbVM $USB_IP  →  many app zones (usbip)"
+  echo "  NixOS zones: usbVM $USB_IP → usbip → zone"
+  echo "  ISO/HVM zones: QMP usb-host straight into the guest (no usbip)"
   echo "  Example: $0 radio 0bda:2838"
 }
 
@@ -54,9 +50,33 @@ if [[ ! "$DEVID" =~ ^[0-9a-fA-F]+:[0-9a-fA-F]+$ ]]; then
   echo "ERROR: need vid:pid hex" >&2
   exit 1
 fi
-if [[ "$ZONE" == "usb" || "$ZONE" == "net" || "$ZONE" == "vault" ]]; then
-  echo "ERROR: attach to an app zone (personal/work/browse/radio/…), not $ZONE" >&2
+if [[ "$ZONE" == "usb" || "$ZONE" == "net" || "$ZONE" == "vault" || "$ZONE" == "voice" ]]; then
+  echo "ERROR: attach to an app/ISO zone, not $ZONE" >&2
   exit 1
+fi
+
+VENDOR="${DEVID%:*}"
+PRODUCT="${DEVID#*:}"
+USBID="usb_${VENDOR}_${PRODUCT}"
+mkdir -p "$STATE_DIR"
+
+# --- ISO / HVM: attach physical device directly to guest QMP ---
+if bunker_zone_is_iso "$ZONE"; then
+  MON="$(find_mon "$ZONE" || true)"
+  [[ -n "$MON" ]] || {
+    echo "ERROR: ISO zone QMP missing. Start: bunker-zone-start $ZONE" >&2
+    exit 1
+  }
+  echo "==> QMP: attach $DEVID directly to ISO zone $ZONE"
+  CMD=$(printf '{"execute":"device_add","arguments":{"driver":"usb-host","vendorid":%s,"productid":%s,"id":"%s","bus":"xhci.0"}}' \
+    "$((0x${VENDOR}))" "$((0x${PRODUCT}))" "$USBID")
+  qmp "$MON" "$CMD" >/dev/null || {
+    echo "ERROR: QMP device_add to $ZONE failed" >&2
+    exit 1
+  }
+  echo "$ZONE direct" >"$STATE_DIR/$DEVID"
+  echo "OK: $DEVID → ISO zone $ZONE (direct usb-host)"
+  exit 0
 fi
 
 ZIP="$(bunker_zone_ip "$ZONE")"
@@ -65,11 +85,6 @@ ZIP="$(bunker_zone_ip "$ZONE")"
   exit 1
 }
 
-mkdir -p "$STATE_DIR"
-VENDOR="${DEVID%:*}"
-PRODUCT="${DEVID#*:}"
-USBID="usb_${VENDOR}_${PRODUCT}"
-
 # --- 1) Ensure device is on usbVM (host QMP → usb only) ---
 MON="$(find_mon usb || true)"
 [[ -n "$MON" ]] || {
@@ -77,7 +92,6 @@ MON="$(find_mon usb || true)"
   exit 1
 }
 
-# If already listed on usb via lsusb, skip QMP; else device_add
 if ! bunker_ssh_zone "$USB_IP" "sudo lsusb -d $DEVID" >/dev/null 2>&1; then
   echo "==> QMP: attach $DEVID to usbVM"
   CMD=$(printf '{"execute":"device_add","arguments":{"driver":"usb-host","vendorid":%s,"productid":%s,"id":"%s","bus":"xhci.0"}}' \
@@ -103,10 +117,17 @@ if [[ -f "$STATE_DIR/$DEVID" ]]; then
   cur="$(cut -d' ' -f1 "$STATE_DIR/$DEVID")"
   if [[ "$cur" != "$ZONE" && -n "$cur" ]]; then
     echo "==> move: detach from $cur"
-    CIP="$(bunker_zone_ip "$cur")"
-    if [[ -n "$CIP" ]]; then
-      bunker_ssh_zone "$CIP" "sudo usbip detach -p 0" 2>/dev/null || \
-        bunker_ssh_zone "$CIP" "sudo usbip detach -p 1" 2>/dev/null || true
+    if bunker_zone_is_iso "$cur"; then
+      CMON="$(find_mon "$cur" || true)"
+      if [[ -n "$CMON" ]]; then
+        qmp "$CMON" "{\"execute\":\"device_del\",\"arguments\":{\"id\":\"$USBID\"}}" >/dev/null || true
+      fi
+    else
+      CIP="$(bunker_zone_ip "$cur")"
+      if [[ -n "$CIP" ]]; then
+        bunker_ssh_zone "$CIP" "sudo usbip detach -p 0" 2>/dev/null || \
+          bunker_ssh_zone "$CIP" "sudo usbip detach -p 1" 2>/dev/null || true
+      fi
     fi
   fi
 fi

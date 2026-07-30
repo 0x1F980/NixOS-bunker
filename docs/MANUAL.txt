@@ -21,7 +21,12 @@ COMMANDS
   bunker-deniable                    # hide/show whole VMs (Shufflecake layers)
   bunker-panic-ui                    # ☢ panic — wipe panic-flagged deniable keys
   bunker-zone list|add|set|rm|apps|usb|templates|colors
-  bunker-broker                      # ratatui net/usb/voice defaults (3=voice on/off)
+  bunker-broker                      # ratatui defaults: 1=net 2=usb 3=voice 4=meta(mat2)
+  bunker-zone add tails --template iso --iso /path/tails.iso --disposable
+  bunker-zone-start tails            # ISO/HVM via QEMU GTK (see docs/iso.md)
+  bunker-zone rename old new         # rename; color via set color=red / TUI c
+  # colors: docs/colors.md (host icons + NixOS guest cursor)
+
   bunker-zone-start <zone|all>
   bunker-term <zone>                 # colored SSH (also: net, usb)
   bunker-clip send <zone>            # host→zone; host clip KEPT; zone TTL clear
@@ -48,11 +53,12 @@ EMERGENCY (locked out of VMs) — use as admin/sudo when destructive
   GUI:  Disks (gnome-disks), GParted, Files (nautilus), Disk Usage (baobab),
         Text Editor, Logs
   CLI:  cryptsetup, parted, smartctl, nvme, ddrescue, testdisk/photorec,
-        rsync, borg, lvm, mkfs.*, mount
+        rsync, borg, lvm, mkfs.*, mount, mat2 / bunker-mat (EXIF strip)
 
 LOGIN RECOVERY
   See docs/ADMIN-RECOVER.md in the checkout (boot older generation if needed).
 
 DOCS (checkout)
-  docs/egress.md  docs/usb.md  docs/portability.md
-  docs/nym-bootstrap.md  docs/ADMIN-RECOVER.md
+  docs/egress.md  docs/usb.md  docs/voice.md  docs/metadata.md  docs/iso.md
+  docs/portability.md  docs/nym-bootstrap.md  docs/ADMIN-RECOVER.md
+  docs/deniable.md

@@ -3,6 +3,9 @@
 # Usage: bunker-wipe <zone>
 set -euo pipefail
 
+# shellcheck source=lib-common.sh
+source "$(dirname "$0")/lib-common.sh"
+
 ZONE="${1:-}"
 if [[ -z "$ZONE" ]]; then
   echo "Usage: $0 <zone>"
@@ -17,6 +20,17 @@ if [[ -f /etc/bunker/zones.tsv ]] && [[ "${BUNKER_WIPE_FORCE:-0}" != "1" ]]; the
     echo "ERROR: '$ZONE' is persistent in config/zones.nix. Set BUNKER_WIPE_FORCE=1 to wipe anyway." >&2
     exit 1
   fi
+fi
+
+if bunker_zone_is_iso "$ZONE"; then
+  DATA="${BUNKER_ISO_DATA:-/var/lib/bunker/iso-zones}/${ZONE}"
+  echo "==> wiping ISO zone data at $DATA"
+  pkill -f "bunker:${ZONE}\\[" 2>/dev/null || true
+  pkill -f "iso-run.sh ${ZONE}" 2>/dev/null || true
+  rm -f "/run/microvm/${ZONE}.sock" 2>/dev/null || true
+  rm -rf "${DATA:?}/"*
+  echo "$ZONE wiped. Start again with: bunker-zone-start $ZONE"
+  exit 0
 fi
 
 DATA="${BUNKER_ZONE_DATA:-/var/lib/microvms/${ZONE}}"

@@ -12,7 +12,8 @@
     "internet": "nym",
     "usb": [],
     "apps": [],
-    "voice": false
+    "voice": false,
+    "metadata": false
   },
   "work": {
     "template": "dev",
@@ -27,7 +28,8 @@
     "internet": "nym",
     "usb": [],
     "apps": [],
-    "voice": false
+    "voice": false,
+    "metadata": false
   },
   "browse": {
     "template": "browser",
@@ -42,7 +44,8 @@
     "internet": "nym",
     "usb": [],
     "apps": [],
-    "voice": false
+    "voice": false,
+    "metadata": false
   },
   "radio": {
     "template": "radio",
@@ -59,6 +62,7 @@
       "0bda:2838"
     ],
     "apps": [],
-    "voice": false
+    "voice": false,
+    "metadata": false
   }
 }

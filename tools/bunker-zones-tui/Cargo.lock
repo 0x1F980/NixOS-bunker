@@ -662,11 +662,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[patch.unused]]
-name = "its_ledger"
-version = "1.1.0"
+name = "sss_chain"
+version = "0.1.0"
 
 [[patch.unused]]
-name = "sss_chain"
+name = "its_otm_public_attestation"
 version = "0.1.0"
 
 [[patch.unused]]
@@ -686,9 +686,9 @@ name = "its_self_enclosed_timelock"
 version = "0.1.0"
 
 [[patch.unused]]
-name = "its_otm_public_attestation"
+name = "its_hardware"
 version = "0.1.0"
 
 [[patch.unused]]
-name = "its_hardware"
-version = "0.1.0"
+name = "its_ledger"
+version = "1.1.0"

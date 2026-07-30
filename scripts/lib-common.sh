@@ -41,6 +41,20 @@ bunker_zone_ip() {
   python3 -c "import json;z=json.load(open('$zj'));print(z.get('$name',{}).get('ip',''))" 2>/dev/null || echo ""
 }
 
+# True if zone is an ISO/HVM guest (template=iso or iso= path set).
+bunker_zone_is_iso() {
+  local name="$1" zj
+  zj="$(bunker_zones_json)"
+  [[ -f "$zj" ]] || return 1
+  python3 -c "
+import json, sys
+z=json.load(open('$zj')).get('$name') or {}
+iso=(z.get('iso') or '').strip()
+tmpl=(z.get('template') or '')
+sys.exit(0 if tmpl=='iso' or bool(iso) else 1)
+" 2>/dev/null
+}
+
 # SSH into zone@IP. Optional leading ssh flags (e.g. -t) before IP.
 #   bunker_ssh_zone 10.0.0.11 'uname -a'
 #   bunker_ssh_zone -t 10.0.0.11 'bash -l'

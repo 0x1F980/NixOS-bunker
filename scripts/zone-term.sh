@@ -15,6 +15,13 @@ if [[ -z "$ZONE" ]]; then
   exit 1
 fi
 
+if bunker_zone_is_iso "$ZONE"; then
+  echo "ISO/HVM zone '$ZONE' has no bunker SSH — use the QEMU GTK window." >&2
+  echo "  Start: bunker-zone-start $ZONE" >&2
+  echo "  USB:   bunker-usb-attach $ZONE vid:pid" >&2
+  exit 1
+fi
+
 lookup() {
   case "$ZONE" in
     net) echo 10.0.0.1; echo black; return ;;

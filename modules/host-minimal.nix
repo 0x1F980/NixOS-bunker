@@ -149,6 +149,11 @@ in
     testdisk
     rsync
     borgbackup
+    # Emergency metadata strip (also in zones when metadata=true)
+    mat2
+    (writeShellScriptBin "bunker-mat" ''
+      exec ${pkgs.mat2}/bin/mat2 --inplace "$@"
+    '')
     bunkerMan
     (writeShellScriptBin "bunker-help" ''
       set -euo pipefail

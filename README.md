@@ -7,12 +7,12 @@
 
 | Path | Role |
 | --- | --- |
-| `config/zones.json` | **Source of truth** for AppVMs / Disposables (CRUD: `bunker-zone`) |
+| `config/zones.json` | **Source of truth** for AppVMs / Disposables / ISO-HVMs (CRUD: `bunker-zone`) |
 | `templates/*.nix` | TemplateVM package sets |
 | `modules/guests/` | netVM, usbVM, voiceVM, vault, `mk-app-zone` |
 | `modules/` | Host UI, clipboard, killswitch wiring, registry |
 | `scripts/` | Operator tools (`lib-common.sh`, `lib-arch.sh`) |
-| `tools/bunker-broker-tui/` | Ratatui net/usb/voice defaults (`defaults · service`) |
+| `tools/bunker-broker-tui/` | Ratatui net/usb/voice/mat2 defaults (`defaults · service`) |
 | `tools/bunker-zones-tui/` | Ratatui AppVM/Disposable CRUD (`zones · service`) |
 | `tools/bunker-deniable-tui/` | Ratatui hidden whole-VMs / Shufflecake (`deniable · service`) |
 | `config/deniable-zones.json` | Deniable whole-VM registry |
@@ -27,6 +27,7 @@
 | TemplateVM | `templates/*.nix` — edit: `bunker-template-edit desktop` / folder **Templates** |
 | AppVM | `zones.json` `kind=appvm` — folder **AppVMs**, title `personal · appvm` |
 | DisposableVM | `kind=disposable` — folder **Disposables**, title `browse · disposable` |
+| ISO/HVM | `template=iso` + `iso=/path.iso` — QEMU guest (Tails…); see [docs/iso.md](docs/iso.md) |
 | net/usb | folder **Service** — `net · netvm`, `usb · usbvm`, `defaults · service` |
 
 ```bash
@@ -34,6 +35,7 @@ bunker-zones          # ratatui CRUD (preferred UX)
 bunker-zone list
 bunker-zone templates
 bunker-zone add throwaway --template browser --disposable
+bunker-zone add tails --template iso --iso /var/lib/bunker/isos/tails.iso --disposable
 bunker-zone set work template=dev internet=i2p
 bunker-zone set browse kind=disposable
 ```
@@ -75,7 +77,7 @@ bunker-test-isolation --live
 | `bunker-zones` / **zones · service** | Ratatui CRUD for AppVMs / Disposables |
 | `bunker-deniable` / **deniable · service** | Hide/show **whole** VMs (Shufflecake layers) |
 | `bunker-panic-ui` / **panic · service** | ☢ Wipe panic-flagged deniable keys + RAM wipe |
-| `bunker-broker` / **defaults · service** | Ratatui net/usb/voice 1→many (`voice` on/off) |
+| `bunker-broker` / **defaults · service** | Ratatui net/usb/voice/metadata (`voice`/`metadata` on/off) |
 | `bunker-zone-start <zone\|all>` | Start microVM(s) (+ USB defaults) |
 | `bunker-term <zone>` | Colored SSH shell into zone |
 | `bunker-wipe <zone>` | Wipe disposable zone data |
@@ -97,6 +99,9 @@ Clipboard TTL (default **30s**): edit `/etc/bunker/clipboard.conf` or `BUNKER_CL
 - **`man bunker`** or [docs/MANUAL.txt](docs/MANUAL.txt) (`/etc/bunker/MANUAL`)
 - [docs/deniable.md](docs/deniable.md) — hidden whole-VMs + panic
 - [docs/voice.md](docs/voice.md) — voiceVM mic anonymizer (Chimera)
+- [docs/metadata.md](docs/metadata.md) — mat2 EXIF/metadata stripper (zone on/off)
+- [docs/colors.md](docs/colors.md) — zone color, rename, guest cursor
+- [docs/iso.md](docs/iso.md) — ISO/HVM zones (Tails, other guests)
 - [docs/portability.md](docs/portability.md) — multi-ISA hosts
 - [docs/usb.md](docs/usb.md) — usbVM broker (1→many)
 - [docs/egress.md](docs/egress.md) — netVM / Nym / i2p / Tor

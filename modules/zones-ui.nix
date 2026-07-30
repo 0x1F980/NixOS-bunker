@@ -19,7 +19,20 @@ let
   ];
 
   qubeType =
-    zone: if zone.disposable or false then "disposable" else (zone.kind or "appvm");
+    zone:
+    let
+      k = zone.kind or null;
+      disp = zone.disposable or false;
+      iso = (zone.template or "") == "iso" || ((zone.iso or "") != "");
+    in
+    if k == "template" then
+      "template"
+    else if disp || k == "disposable" then
+      "disposable"
+    else if iso then
+      "appvm"
+    else
+      (k or "appvm");
 
   mkIcon =
     name: colorName:
@@ -83,19 +96,29 @@ let
     name: zone:
     let
       typ = qubeType zone;
-      cat = if typ == "disposable" then "X-Qube-Disposable" else "X-Qube-AppVM";
+      iso = (zone.template or "") == "iso" || ((zone.iso or "") != "");
+      cat =
+        if typ == "disposable" then
+          "X-Qube-Disposable"
+        else if typ == "template" then
+          "X-Qube-Template"
+        else
+          "X-Qube-AppVM";
+      isoNote = if iso then " · ISO/HVM" else "";
     in
     mkLauncher {
       id = name;
       title = "${name} · ${typ}";
-      comment = "template=${zone.template} · ${zone.ip} · net=${zone.internet or "nym"} · color=${zone.color or "gray"}";
+      comment = "template=${zone.template}${isoNote} · ${zone.ip} · net=${zone.internet or "nym"} · color=${zone.color or "gray"}";
       exec = "bunker-zone-start ${name}";
       colorName = zone.color or "gray";
       category = cat;
       keywords = [
         typ
         zone.template
-      ];
+      ]
+      ++ lib.optional iso "iso"
+      ++ lib.optional iso "hvm";
     };
 
   # Static GNOME launchers: public zones only (deniable appear under /run/bunker/xdg when unlocked)
@@ -299,7 +322,7 @@ let
     (mkLauncher {
       id = "defaults";
       title = "defaults · service";
-      comment = "ratatui — net/usb/voice 1→many defaults";
+      comment = "ratatui — net/usb/voice/mat2 defaults";
       exec = "bunker-broker";
       colorName = "blue";
       category = "X-Qube-Service";
@@ -499,7 +522,7 @@ in
 
     Zone CRUD (prefer TUI/CLI — not hand-editing Nix modules):
       zones · service   OR   bunker-zones   OR   bunker-zone list|add|set|rm
-      defaults · service — net/usb/voice 1→many (voice = on|off per zone)
+      defaults · service — net/usb/voice/metadata (mat2) on|off per zone
       deniable · service — whole hidden VMs (Shufflecake layers)
       panic · service  — wipe panic-flagged deniable keys (☢)
       Hand-edit config/zones.json is OK (same SoT). Then: nixos-rebuild switch
@@ -508,6 +531,7 @@ in
       bunker-zone list|add|set|rm|apps|usb|templates
       bunker-zone add myvm --template desktop          # AppVM
       bunker-zone add throwaway --template browser --disposable
-      bunker-zone set myvm template=dev internet=i2p voice=on
+      bunker-zone set myvm template=dev internet=i2p voice=on metadata=on
+      bunker-zone add tails --template iso --iso /var/lib/bunker/isos/tails.iso --disposable
   '';
 }

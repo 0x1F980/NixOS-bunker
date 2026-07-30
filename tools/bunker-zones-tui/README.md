@@ -1,25 +1,23 @@
 # bunker-zones-tui
 
-Ratatui UI for **AppVM / Disposable CRUD** in `config/zones.json`.
+Ratatui CRUD for **AppVM · Disposable · Template · ISO/HVM** in `config/zones.json`.
 Host launcher: **zones · service** (`bunker-zones`).
-
-Prefer this (or `bunker-zone` CLI) over hand-editing Nix modules for per-zone changes.
-Hand-editing `zones.json` is fine — same source of truth. After save: `nixos-rebuild switch`.
-
-## Keys
 
 | Key | Action |
 | --- | --- |
-| ↑↓ / j k | Navigate list |
-| Enter / e | Edit selected zone |
-| a | Add zone (name prompt) |
-| x | Delete zone (confirm y) |
-| s | Start selected (`bunker-zone-start`) |
-| w | Write `zones.json` |
-| t / c / i / k / m | Cycle template / color / internet / kind / mem |
-| p / P | Add / pop app package |
-| u / U | Add / pop USB vid:pid |
-| ? | Help |
-| q / Esc | Quit / back |
+| `a` | Add **NixOS** zone |
+| `A` / `I` | Add **ISO/HVM** zone (name → path wizard) |
+| `n` | **Rename** zone |
+| `c` | Cycle **color** (host icons + NixOS guest cursor after rebuild) |
+| `k` | Cycle **kind**: appvm → disposable → template |
+| `m` / `M` | **RAM** up / down (MiB steps) |
+| `v` / `V` | **vCPU** up / down |
+| `r` / `N` | Type exact RAM (MiB) / vCPU count |
+| `t` / `o` / `b` | template / ISO path / boot |
+| `i` | internet |
+| `u` / `U` | USB add / pop |
+| `p` / `P` | Apps (NixOS only) |
+| `s` | Start selected |
+| `w` | Save |
 
-Sister app: [bunker-broker-tui](../bunker-broker-tui/) (**defaults · service**) for net/usb brokers.
+See [docs/colors.md](../../docs/colors.md), [docs/iso.md](../../docs/iso.md).

@@ -31,15 +31,59 @@ enum Screen {
 enum InputKind {
     None,
     AddName,
+    AddIsoName,
+    AddIsoPath,
+    SetIso,
+    SetMem,
+    SetVcpu,
+    Rename,
     UnlockPass,
     ConfirmDelete,
 }
 
-const TEMPLATES: &[&str] = &["desktop", "dev", "browser", "radio"];
+const TEMPLATES: &[&str] = &["desktop", "dev", "browser", "radio", "iso"];
+const KINDS: &[&str] = &["appvm", "disposable", "template"];
+const MEM_STEPS: &[u64] = &[
+    512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384,
+];
+const VCPU_STEPS: &[u64] = &[1, 2, 4, 6, 8, 12, 16];
 const COLORS: &[&str] = &[
     "red", "orange", "yellow", "green", "blue", "purple", "black", "gray",
 ];
 const NET_MODES: &[&str] = &["nym", "i2p", "tor", "none"];
+
+fn is_iso_zone(z: &Value) -> bool {
+    z.get("template").and_then(|x| x.as_str()) == Some("iso")
+        || z
+            .get("iso")
+            .and_then(|x| x.as_str())
+            .map(|s| !s.is_empty())
+            .unwrap_or(false)
+}
+
+fn color_hex(name: &str) -> &'static str {
+    match name {
+        "red" => "#cc0000",
+        "orange" => "#f57900",
+        "yellow" => "#edd400",
+        "green" => "#73d216",
+        "blue" => "#3465a4",
+        "purple" => "#75507b",
+        "black" => "#2e3436",
+        "gray" => "#888a85",
+        _ => "#888a85",
+    }
+}
+
+fn zone_kind(z: &Value) -> &str {
+    match z.get("kind").and_then(|x| x.as_str()) {
+        Some("template") => "template",
+        Some("disposable") => "disposable",
+        Some("appvm") => "appvm",
+        _ if z.get("disposable").and_then(|x| x.as_bool()) == Some(true) => "disposable",
+        _ => "appvm",
+    }
+}
 
 struct App {
     path: PathBuf,
@@ -52,6 +96,7 @@ struct App {
     input: String,
     input_kind: InputKind,
     unlock_layer: u64,
+    pending_name: String,
 }
 
 impl App {
@@ -81,6 +126,7 @@ impl App {
             input: String::new(),
             input_kind: InputKind::None,
             unlock_layer: 1,
+            pending_name: String::new(),
         })
     }
 
@@ -229,6 +275,39 @@ impl App {
         self.status = format!("Removed {name}");
     }
 
+    fn rename_zone(&mut self, new_name: &str) {
+        let new_name = new_name.trim();
+        let Some(old) = self.selected().map(|s| s.to_string()) else {
+            return;
+        };
+        if new_name.is_empty()
+            || !new_name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            self.status = "Name: alphanumeric / _ / -".into();
+            return;
+        }
+        if new_name == old {
+            self.status = "Name unchanged".into();
+            return;
+        }
+        if self.zones.contains_key(new_name) {
+            self.status = format!("exists: {new_name}");
+            return;
+        }
+        let Some(val) = self.zones.remove(&old) else {
+            return;
+        };
+        self.zones.insert(new_name.into(), val);
+        self.refresh();
+        if let Some(i) = self.names.iter().position(|n| n == new_name) {
+            self.list.select(Some(i));
+        }
+        self.dirty = true;
+        self.status = format!("Renamed {old} → {new_name} (save + rebuild)");
+    }
+
     fn obj_mut(&mut self) -> Option<&mut Map<String, Value>> {
         let name = self.selected()?.to_string();
         self.zones.get_mut(&name)?.as_object_mut()
@@ -243,7 +322,11 @@ impl App {
         let next = opts[(i + 1) % opts.len()];
         obj.insert(key.into(), json!(next));
         self.dirty = true;
-        self.status = format!("{key} → {next}");
+        if key == "color" {
+            self.status = format!("color → {next} {}", color_hex(next));
+        } else {
+            self.status = format!("{key} → {next}");
+        }
     }
 
     fn cycle_layer(&mut self) {
@@ -271,15 +354,175 @@ impl App {
         let Some(obj) = self.obj_mut() else {
             return;
         };
-        let disp = obj.get("disposable").and_then(|x| x.as_bool()).unwrap_or(false)
-            || obj.get("kind").and_then(|x| x.as_str()) == Some("disposable");
-        let next = !disp;
-        obj.insert("disposable".into(), json!(next));
-        obj.insert(
-            "kind".into(),
-            json!(if next { "disposable" } else { "appvm" }),
-        );
+        let cur = obj
+            .get("kind")
+            .and_then(|x| x.as_str())
+            .unwrap_or_else(|| {
+                if obj.get("disposable").and_then(|x| x.as_bool()) == Some(true) {
+                    "disposable"
+                } else {
+                    "appvm"
+                }
+            });
+        let idx = KINDS.iter().position(|k| *k == cur).unwrap_or(0);
+        let next = KINDS[(idx + 1) % KINDS.len()];
+        obj.insert("kind".into(), json!(next));
+        obj.insert("disposable".into(), json!(next == "disposable"));
         self.dirty = true;
+        self.status = format!("kind → {next}");
+    }
+
+    fn set_iso_path(&mut self, path: &str) {
+        let path = path.trim();
+        if path.is_empty() {
+            self.status = "Need absolute path to .iso / .img".into();
+            return;
+        }
+        let Some(obj) = self.obj_mut() else {
+            return;
+        };
+        obj.insert("template".into(), json!("iso"));
+        obj.insert("iso".into(), json!(path));
+        if obj.get("boot").is_none() {
+            obj.insert("boot".into(), json!("iso"));
+        }
+        if obj.get("display").is_none() {
+            obj.insert("display".into(), json!("gtk"));
+        }
+        self.dirty = true;
+        self.status = format!("iso → {path}");
+    }
+
+    fn cycle_mem(&mut self, up: bool) {
+        let Some(obj) = self.obj_mut() else {
+            return;
+        };
+        let cur = obj.get("mem").and_then(|x| x.as_u64()).unwrap_or(1536);
+        let idx = MEM_STEPS
+            .iter()
+            .position(|m| *m == cur)
+            .unwrap_or_else(|| {
+                MEM_STEPS
+                    .iter()
+                    .position(|m| *m > cur)
+                    .unwrap_or(MEM_STEPS.len().saturating_sub(1))
+            });
+        let next = if up {
+            MEM_STEPS[(idx + 1) % MEM_STEPS.len()]
+        } else {
+            MEM_STEPS[(idx + MEM_STEPS.len() - 1) % MEM_STEPS.len()]
+        };
+        obj.insert("mem".into(), json!(next));
+        self.dirty = true;
+        self.status = format!("RAM mem → {next} MiB");
+    }
+
+    fn cycle_vcpu(&mut self, up: bool) {
+        let Some(obj) = self.obj_mut() else {
+            return;
+        };
+        let cur = obj.get("vcpu").and_then(|x| x.as_u64()).unwrap_or(2);
+        let idx = VCPU_STEPS
+            .iter()
+            .position(|m| *m == cur)
+            .unwrap_or_else(|| {
+                VCPU_STEPS
+                    .iter()
+                    .position(|m| *m > cur)
+                    .unwrap_or(VCPU_STEPS.len().saturating_sub(1))
+            });
+        let next = if up {
+            VCPU_STEPS[(idx + 1) % VCPU_STEPS.len()]
+        } else {
+            VCPU_STEPS[(idx + VCPU_STEPS.len() - 1) % VCPU_STEPS.len()]
+        };
+        obj.insert("vcpu".into(), json!(next));
+        self.dirty = true;
+        self.status = format!("vCPU → {next}");
+    }
+
+    fn set_mem_mib(&mut self, raw: &str) {
+        let s = raw.trim().to_lowercase().replace('m', "").replace("ib", "");
+        let Ok(n) = s.parse::<u64>() else {
+            self.status = "RAM: enter MiB, e.g. 4096".into();
+            return;
+        };
+        if !(256..=65536).contains(&n) {
+            self.status = "RAM must be 256..65536 MiB".into();
+            return;
+        }
+        let Some(obj) = self.obj_mut() else {
+            return;
+        };
+        obj.insert("mem".into(), json!(n));
+        self.dirty = true;
+        self.status = format!("RAM mem → {n} MiB");
+    }
+
+    fn set_vcpu_n(&mut self, raw: &str) {
+        let Ok(n) = raw.trim().parse::<u64>() else {
+            self.status = "vCPU: 1..64".into();
+            return;
+        };
+        if !(1..=64).contains(&n) {
+            self.status = "vCPU must be 1..64".into();
+            return;
+        }
+        let Some(obj) = self.obj_mut() else {
+            return;
+        };
+        obj.insert("vcpu".into(), json!(n));
+        self.dirty = true;
+        self.status = format!("vCPU → {n}");
+    }
+
+    fn add_iso_zone(&mut self, name: &str, iso_path: &str) {
+        let name = name.trim();
+        let iso_path = iso_path.trim();
+        if name.is_empty()
+            || !name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            self.status = "Name: alphanumeric / _ / -".into();
+            return;
+        }
+        if iso_path.is_empty() {
+            self.status = "Need ISO path".into();
+            return;
+        }
+        if self.zones.contains_key(name) {
+            self.status = format!("exists: {name}");
+            return;
+        }
+        let (ip, mac, socks) = self.next_free();
+        self.zones.insert(
+            name.into(),
+            json!({
+                "layer": 1,
+                "panic": true,
+                "template": "iso",
+                "iso": iso_path,
+                "boot": "iso",
+                "display": "gtk",
+                "diskGb": 16,
+                "kind": "disposable",
+                "ip": ip,
+                "mac": mac,
+                "socks": socks,
+                "mem": 2048,
+                "vcpu": 2,
+                "disposable": true,
+                "color": "purple",
+                "internet": "none",
+                "usb": [],
+                "apps": []
+            }),
+        );
+        self.refresh();
+        self.dirty = true;
+        self.screen = Screen::Edit;
+        self.status = format!("Added deniable ISO/HVM {name} — k=kind o=path w save");
     }
 
     fn unlock_selected_layer(&mut self, pass: &str) {
@@ -349,17 +592,27 @@ fn ui(f: &mut Frame, app: &mut App) {
         Screen::Help => draw_help(f, chunks[1]),
     }
     let hint = match app.input_kind {
-        InputKind::AddName => format!("new deniable zone> {}_", app.input),
+        InputKind::AddName => format!("new NixOS deniable> {}_", app.input),
+        InputKind::AddIsoName => format!("new ISO deniable name> {}_", app.input),
+        InputKind::AddIsoPath => format!(
+            "ISO path for '{}'> {}_",
+            app.pending_name, app.input
+        ),
+        InputKind::SetIso => format!("ISO path> {}_", app.input),
+        InputKind::SetMem => format!("RAM MiB> {}_", app.input),
+        InputKind::SetVcpu => format!("vCPU> {}_", app.input),
+        InputKind::Rename => format!("rename to> {}_", app.input),
         InputKind::UnlockPass => format!("layer passphrase> {}_", "*".repeat(app.input.len())),
         InputKind::ConfirmDelete => "Delete deniable zone? y/n".into(),
         InputKind::None => match app.screen {
             Screen::List => {
-                "Enter edit  a add  x del  u unlock  L lock-all  w save  ?=help  q quit".into()
+                "↑↓  Enter=edit  a=NixOS  A=ISO  c=color  n=rename  m/M=RAM  u=unlock  w  ?"
+                    .into()
             }
             Screen::Edit => {
-                "t template  c color  i net  k kind  l layer  p panic  w save  Esc list".into()
+                "n=rename  c=color  m/M=RAM  v/V=CPU  t/o/i/k  l=layer  p=panic  w  Esc".into()
             }
-            Screen::Help => "Esc back".into(),
+            Screen::Help => "Esc=back".into(),
         },
     };
     f.render_widget(
@@ -371,13 +624,27 @@ fn ui(f: &mut Frame, app: &mut App) {
         .block(Block::default().borders(Borders::ALL).title("keys")),
         chunks[2],
     );
-    if matches!(app.input_kind, InputKind::AddName | InputKind::UnlockPass) {
-        let area = centered(chunks[1], 64, 5);
+    if matches!(
+        app.input_kind,
+        InputKind::AddName
+            | InputKind::AddIsoName
+            | InputKind::AddIsoPath
+            | InputKind::SetIso
+            | InputKind::SetMem
+            | InputKind::SetVcpu
+            | InputKind::Rename
+            | InputKind::UnlockPass
+    ) {
+        let area = centered(chunks[1], 72, 5);
         f.render_widget(Clear, area);
-        let title = if app.input_kind == InputKind::UnlockPass {
-            "passphrase (not stored)"
-        } else {
-            "zone name"
+        let title = match app.input_kind {
+            InputKind::UnlockPass => "passphrase (not stored)",
+            InputKind::AddIsoName => "deniable ISO/HVM name",
+            InputKind::AddIsoPath | InputKind::SetIso => "absolute path to .iso / .img",
+            InputKind::SetMem => "RAM MiB",
+            InputKind::SetVcpu => "vCPU count",
+            InputKind::Rename => "new zone name",
+            _ => "zone name",
         };
         let shown = if app.input_kind == InputKind::UnlockPass {
             "*".repeat(app.input.len())
@@ -399,11 +666,17 @@ fn draw_list(f: &mut Frame, area: Rect, app: &mut App) {
             let z = &app.zones[n];
             let layer = z.get("layer").and_then(|x| x.as_u64()).unwrap_or(0);
             let panic = z.get("panic").and_then(|x| x.as_bool()).unwrap_or(false);
-            let kind = z.get("kind").and_then(|x| x.as_str()).unwrap_or("appvm");
-            ListItem::new(format!(
-                "{n:<12} L{layer}  {:<5} {kind:<11} {}",
-                if panic { "PANIC" } else { "-" },
+            let kind = zone_kind(z);
+            let typ = if is_iso_zone(z) {
+                "ISO"
+            } else {
                 z.get("template").and_then(|x| x.as_str()).unwrap_or("-")
+            };
+            let mem = z.get("mem").and_then(|x| x.as_u64()).unwrap_or(0);
+            let vcpu = z.get("vcpu").and_then(|x| x.as_u64()).unwrap_or(0);
+            ListItem::new(format!(
+                "{n:<12} L{layer} {:<5} {kind:<10} {typ:<7} {mem:>5}M {vcpu}c",
+                if panic { "PANIC" } else { "-" },
             ))
         })
         .collect();
@@ -427,9 +700,15 @@ fn draw_edit(f: &mut Frame, area: Rect, app: &App) {
         return;
     };
     let z = &app.zones[name];
-    let lines = vec![
+    let iso = is_iso_zone(z);
+    let kind = zone_kind(z);
+    let mut lines = vec![
         Line::from(Span::styled(
-            format!("  {name}"),
+            format!(
+                "  {name}  ·  {}{}",
+                kind,
+                if iso { "  ·  ISO/HVM" } else { "  ·  NixOS" }
+            ),
             Style::default()
                 .fg(Color::Magenta)
                 .add_modifier(Modifier::BOLD),
@@ -446,26 +725,42 @@ fn draw_edit(f: &mut Frame, area: Rect, app: &App) {
             "  [t] template {}",
             z.get("template").and_then(|x| x.as_str()).unwrap_or("-")
         )),
+    ];
+    if iso {
+        lines.push(Line::from(format!(
+            "  [o] iso path {}",
+            z.get("iso").and_then(|x| x.as_str()).unwrap_or("-")
+        )));
+    }
+    lines.extend([
         Line::from(format!(
-            "  [c] color    {}",
-            z.get("color").and_then(|x| x.as_str()).unwrap_or("-")
+            "  [c] color    {}  {}   [n] rename",
+            z.get("color").and_then(|x| x.as_str()).unwrap_or("-"),
+            color_hex(z.get("color").and_then(|x| x.as_str()).unwrap_or("gray"))
         )),
         Line::from(format!(
             "  [i] internet {}",
             z.get("internet").and_then(|x| x.as_str()).unwrap_or("-")
         )),
         Line::from(format!(
-            "  [k] kind     {}",
-            z.get("kind").and_then(|x| x.as_str()).unwrap_or("appvm")
+            "  [k] kind     {kind}  ← appvm | disposable | template"
+        )),
+        Line::from(format!(
+            "  [m]/[M] RAM   {} MiB   [r] exact",
+            z.get("mem").and_then(|x| x.as_u64()).unwrap_or(0)
+        )),
+        Line::from(format!(
+            "  [v]/[V] vCPU  {}      [N] exact",
+            z.get("vcpu").and_then(|x| x.as_u64()).unwrap_or(0)
         )),
         Line::from(format!(
             "      ip       {}",
             z.get("ip").and_then(|x| x.as_str()).unwrap_or("-")
         )),
         Line::from(""),
-        Line::from("  Whole VM disk lives on Shufflecake layer when unlocked."),
+        Line::from("  Whole VM on Shufflecake when unlocked. ISO = QEMU HVM (docs/iso.md)."),
         Line::from("  Prefer this TUI — do not hand-edit Nix for deniable CRUD."),
-    ];
+    ]);
     f.render_widget(
         Paragraph::new(lines).block(Block::default().borders(Borders::ALL)),
         area,
@@ -474,11 +769,11 @@ fn draw_edit(f: &mut Frame, area: Rect, app: &App) {
 
 fn draw_help(f: &mut Frame, area: Rect) {
     let text = vec![
-        Line::from("Deniable = entire microVM zones, not files."),
+        Line::from("Deniable = entire zones (NixOS or ISO/HVM), not files."),
+        Line::from("a = NixOS deniable · A/I = ISO/HVM deniable (Tails, …)."),
+        Line::from("n = rename · c = color · k = kind · m/M RAM · v/V vCPU · o = ISO."),
         Line::from("Unlock layer → VMs appear under /run/bunker/xdg (GNOME)."),
-        Line::from("Lock → hide VMs; panic flag → destroyed by panic · service."),
-        Line::from("Public decoy zones stay in zones.json / zones · service."),
-        Line::from("See docs/deniable.md — Shufflecake is research-grade."),
+        Line::from("See docs/deniable.md + docs/iso.md"),
     ];
     f.render_widget(
         Paragraph::new(text).block(Block::default().borders(Borders::ALL).title("help")),
@@ -549,17 +844,69 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                 KeyCode::Esc => {
                     app.input_kind = InputKind::None;
                     app.input.clear();
+                    app.pending_name.clear();
                 }
                 KeyCode::Enter => {
                     let t = app.input.clone();
                     match app.input_kind {
-                        InputKind::AddName => app.add_zone(&t),
-                        InputKind::UnlockPass => app.unlock_selected_layer(&t),
-                        InputKind::ConfirmDelete => {}
-                        InputKind::None => {}
+                        InputKind::AddName => {
+                            app.add_zone(&t);
+                            app.input.clear();
+                            app.input_kind = InputKind::None;
+                        }
+                        InputKind::AddIsoName => {
+                            let name = t.trim().to_string();
+                            if name.is_empty()
+                                || !name
+                                    .chars()
+                                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+                            {
+                                app.status = "Name: alphanumeric / _ / -".into();
+                            } else if app.zones.contains_key(&name) {
+                                app.status = format!("exists: {name}");
+                            } else {
+                                app.pending_name = name;
+                                app.input.clear();
+                                app.input_kind = InputKind::AddIsoPath;
+                            }
+                        }
+                        InputKind::AddIsoPath => {
+                            let name = app.pending_name.clone();
+                            app.add_iso_zone(&name, &t);
+                            app.pending_name.clear();
+                            app.input.clear();
+                            app.input_kind = InputKind::None;
+                        }
+                        InputKind::SetIso => {
+                            app.set_iso_path(&t);
+                            app.input.clear();
+                            app.input_kind = InputKind::None;
+                        }
+                        InputKind::SetMem => {
+                            app.set_mem_mib(&t);
+                            app.input.clear();
+                            app.input_kind = InputKind::None;
+                        }
+                        InputKind::SetVcpu => {
+                            app.set_vcpu_n(&t);
+                            app.input.clear();
+                            app.input_kind = InputKind::None;
+                        }
+                        InputKind::Rename => {
+                            app.rename_zone(&t);
+                            app.input.clear();
+                            app.input_kind = InputKind::None;
+                        }
+                        InputKind::UnlockPass => {
+                            app.unlock_selected_layer(&t);
+                            app.input.clear();
+                            app.input_kind = InputKind::None;
+                        }
+                        InputKind::ConfirmDelete | InputKind::None => {
+                            app.input.clear();
+                            app.input_kind = InputKind::None;
+                        }
                     }
-                    app.input.clear();
-                    app.input_kind = InputKind::None;
                 }
                 KeyCode::Char('y') | KeyCode::Char('Y')
                     if app.input_kind == InputKind::ConfirmDelete =>
@@ -600,6 +947,12 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                     app.input.clear();
                     app.input_kind = InputKind::AddName;
                 }
+                KeyCode::Char('A') | KeyCode::Char('I') => {
+                    app.input.clear();
+                    app.pending_name.clear();
+                    app.input_kind = InputKind::AddIsoName;
+                    app.status = "Deniable ISO/HVM — name then path".into();
+                }
                 KeyCode::Char('x') => {
                     if app.selected().is_some() {
                         app.input_kind = InputKind::ConfirmDelete;
@@ -610,6 +963,39 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                     app.input_kind = InputKind::UnlockPass;
                 }
                 KeyCode::Char('L') => app.lock_all(),
+                KeyCode::Char('c') if app.selected().is_some() => {
+                    app.cycle_str("color", COLORS);
+                }
+                KeyCode::Char('n') if app.selected().is_some() => {
+                    app.input = app.selected().unwrap_or("").to_string();
+                    app.input_kind = InputKind::Rename;
+                }
+                KeyCode::Char('m') => app.cycle_mem(true),
+                KeyCode::Char('M') => app.cycle_mem(false),
+                KeyCode::Char('v') => app.cycle_vcpu(true),
+                KeyCode::Char('V') => app.cycle_vcpu(false),
+                KeyCode::Char('r') if app.selected().is_some() => {
+                    app.input.clear();
+                    if let Some(n) = app.selected() {
+                        if let Some(z) = app.zones.get(n) {
+                            if let Some(m) = z.get("mem").and_then(|x| x.as_u64()) {
+                                app.input = m.to_string();
+                            }
+                        }
+                    }
+                    app.input_kind = InputKind::SetMem;
+                }
+                KeyCode::Char('N') if app.selected().is_some() => {
+                    app.input.clear();
+                    if let Some(n) = app.selected() {
+                        if let Some(z) = app.zones.get(n) {
+                            if let Some(c) = z.get("vcpu").and_then(|x| x.as_u64()) {
+                                app.input = c.to_string();
+                            }
+                        }
+                    }
+                    app.input_kind = InputKind::SetVcpu;
+                }
                 _ => {}
             },
             Screen::Edit => match key.code {
@@ -620,10 +1006,64 @@ fn loop_ui(terminal: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> 
                         app.status = format!("save: {e}");
                     }
                 }
-                KeyCode::Char('t') => app.cycle_str("template", TEMPLATES),
+                KeyCode::Char('t') => {
+                    app.cycle_str("template", TEMPLATES);
+                    let is_iso = app
+                        .selected()
+                        .and_then(|n| app.zones.get(n))
+                        .map(is_iso_zone)
+                        .unwrap_or(false);
+                    if is_iso {
+                        let empty = app
+                            .selected()
+                            .and_then(|n| app.zones.get(n))
+                            .and_then(|z| z.get("iso"))
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .is_empty();
+                        if empty {
+                            app.input.clear();
+                            app.input_kind = InputKind::SetIso;
+                        }
+                    }
+                }
+                KeyCode::Char('o') => {
+                    app.input.clear();
+                    app.input_kind = InputKind::SetIso;
+                }
                 KeyCode::Char('c') => app.cycle_str("color", COLORS),
                 KeyCode::Char('i') => app.cycle_str("internet", NET_MODES),
                 KeyCode::Char('k') => app.toggle_kind(),
+                KeyCode::Char('n') => {
+                    app.input = app.selected().unwrap_or("").to_string();
+                    app.input_kind = InputKind::Rename;
+                }
+                KeyCode::Char('m') => app.cycle_mem(true),
+                KeyCode::Char('M') => app.cycle_mem(false),
+                KeyCode::Char('v') => app.cycle_vcpu(true),
+                KeyCode::Char('V') => app.cycle_vcpu(false),
+                KeyCode::Char('r') => {
+                    app.input.clear();
+                    if let Some(n) = app.selected() {
+                        if let Some(z) = app.zones.get(n) {
+                            if let Some(m) = z.get("mem").and_then(|x| x.as_u64()) {
+                                app.input = m.to_string();
+                            }
+                        }
+                    }
+                    app.input_kind = InputKind::SetMem;
+                }
+                KeyCode::Char('N') => {
+                    app.input.clear();
+                    if let Some(n) = app.selected() {
+                        if let Some(z) = app.zones.get(n) {
+                            if let Some(c) = z.get("vcpu").and_then(|x| x.as_u64()) {
+                                app.input = c.to_string();
+                            }
+                        }
+                    }
+                    app.input_kind = InputKind::SetVcpu;
+                }
                 KeyCode::Char('l') => app.cycle_layer(),
                 KeyCode::Char('p') => app.toggle_panic(),
                 KeyCode::Char('u') => {

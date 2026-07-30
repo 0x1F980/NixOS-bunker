@@ -63,6 +63,10 @@
       deniableZones = import ./config/deniable-zones.nix;
       # Guests + net SOCKS include deniable VMs; GNOME static launchers stay public-only
       appZones = publicZones // deniableZones;
+      # ISO/HVM zones are QEMU guests (scripts/iso-run.sh), not NixOS microVMs
+      isIsoZone =
+        zone: (zone.template or "") == "iso" || ((zone.iso or "") != "");
+      nixosAppZones = lib.filterAttrs (_: z: !(isIsoZone z)) appZones;
 
       mkPkgs =
         system:
@@ -136,7 +140,7 @@
                 inherit name zone;
               })
             ]
-          ) appZones;
+          ) nixosAppZones;
         in
         systemGuests // appGuests;
 

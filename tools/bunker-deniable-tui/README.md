@@ -1,17 +1,15 @@
 # bunker-deniable-tui
 
-Ratatui CRUD for **whole hidden zone-VMs** on Shufflecake layers.
-Launcher: **deniable · service** (`bunker-deniable`).
+Hidden whole-VMs (Shufflecake) — NixOS or ISO/HVM. Same resource/color keys as zones · service.
 
 | Key | Action |
 | --- | --- |
-| a | Add deniable zone |
-| Enter | Edit (layer, panic, template, …) |
-| u | Unlock layer (passphrase → show VMs) |
-| L | Lock all (hide VMs) |
-| w | Save `deniable-zones.json` |
-| x | Delete |
-| ? | Help |
+| `a` / `A`/`I` | Add NixOS / ISO deniable |
+| `n` / `c` | rename / cycle color |
+| `m`/`M` · `v`/`V` · `r`/`N` | RAM ± · vCPU ± · exact |
+| `k` | kind appvm\|disposable\|template |
+| `l` / `p` | layer / panic |
+| `u` / `L` | unlock / lock-all |
+| `w` | Save |
 
-After save: `sudo nixos-rebuild switch --flake .#host` so guest closures exist.
-Docs: [docs/deniable.md](../../docs/deniable.md).
+See [docs/deniable.md](../../docs/deniable.md), [docs/colors.md](../../docs/colors.md).
