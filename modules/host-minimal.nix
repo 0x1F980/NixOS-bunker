@@ -73,12 +73,14 @@ in
 
   users.mutableUsers = false;
 
-  # Host SSH — always creates sshd.service
+  # Host SSH — creates sshd.service (do not mkForce settings.* — breaks freeform merge)
   services.openssh.enable = lib.mkForce true;
-  services.openssh.openFirewall = lib.mkForce true;
-  services.openssh.settings.PasswordAuthentication = lib.mkForce true;
-  services.openssh.settings.KbdInteractiveAuthentication = lib.mkForce true;
-  services.openssh.settings.PermitRootLogin = lib.mkForce "yes";
+  services.openssh.openFirewall = true;
+  services.openssh.settings = {
+    PasswordAuthentication = true;
+    KbdInteractiveAuthentication = true;
+    PermitRootLogin = "yes";
+  };
 
   # Defaults after flake switch (change with passwd):
   #   bunker / changeme-bunker
