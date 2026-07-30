@@ -399,7 +399,8 @@ let
     OP="''${1:-attach}"
     ZONES="$(bunker-zone list 2>/dev/null | awk 'NR>1 {print $1}' || true)"
     [[ -n "$ZONES" ]] || ZONES=$'personal\nwork\nbrowse\nradio'
-    ZONE="$(zenity --list --title="USB $OP" --text="AppVM:" --column="zone" $ZONES 2>/dev/null || true)"
+    mapfile -t _zones < <(printf '%s\n' "$ZONES")
+    ZONE="$(zenity --list --title="USB $OP" --text="AppVM:" --column="zone" "''${_zones[@]}" 2>/dev/null || true)"
     [[ -n "''${ZONE:-}" ]] || exit 0
     DEVID="$(zenity --entry --title="USB $OP" --text="vid:pid" --entry-text="0bda:2838" 2>/dev/null || true)"
     [[ -n "''${DEVID:-}" ]] || exit 0
