@@ -81,6 +81,7 @@ PY
 import json,os
 p=os.environ["ZONE_JSON"]; z=json.load(open(p)); n=os.environ["NAME"]
 assert n not in z and n.replace("-","").replace("_","").isalnum(), "bad/exists"
+assert n not in ("net","usb"), "net/usb are fixed brokers — edit kind in TUI"
 k=os.environ["KIND"]
 e={"template":os.environ["TEMPLATE"],"ip":os.environ["IP"],"mac":os.environ["MAC"],
    "socks":int(os.environ["SOCKS"]),"mem":int(os.environ["MEM"]),"vcpu":int(os.environ["VCPU"]),
@@ -120,14 +121,20 @@ json.dump(z,open(p,"w"),indent=2); print(json.dumps({n:z[n]},indent=2))
 PY
   ;;
   rm|delete) NAME="${2:?}" py <<'PY'
-import json,os
+import json,os,sys
 p=os.environ["ZONE_JSON"]; z=json.load(open(p)); n=os.environ["NAME"]
+c=z.get(n) or {}
+if n in ("net","usb") or c.get("role")=="broker":
+  sys.exit(f"ERROR: {n} is a broker — cannot delete (set kind=disposable in TUI)")
 del z[n]; json.dump(z,open(p,"w"),indent=2); print("removed",n)
 PY
   ;;
   rename|mv) OLD="${2:?}" NEW="${3:?}" py <<'PY'
-import json,os,re
+import json,os,re,sys
 p=os.environ["ZONE_JSON"]; z=json.load(open(p)); o,n=os.environ["OLD"],os.environ["NEW"]
+c=z.get(o) or {}
+if o in ("net","usb") or c.get("role")=="broker":
+  sys.exit(f"ERROR: {o} is a broker — cannot rename")
 assert o in z and n not in z and re.fullmatch(r"[A-Za-z0-9_-]+",n)
 z[n]=z.pop(o); json.dump(z,open(p,"w"),indent=2); print(f"renamed {o}→{n}")
 print("Next: sudo nixos-rebuild switch --flake .#host")

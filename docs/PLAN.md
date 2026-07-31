@@ -17,9 +17,10 @@ Host is not an egress/browsing domain. Apps in zones. Assume correct use.
 ## Operator UX
 
 - Ratatui `bunker` — full CRUD (incl. color, kind, net, hide, iso, panic)
-- kinds: appvm | disposable | template
+- kinds: appvm | disposable | template (incl. **netVM / usbVM brokers** via TUI `t`)
 - panic: keep | lock | wipe
 - invisible + Shufflecake (hidden names only inside SFLC layers; public zones.json clean)
+- disposable brokers: wipe disk on each start
 
 ## Rebuild (pick YOUR arch)
 

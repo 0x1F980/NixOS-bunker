@@ -31,8 +31,8 @@ HOST (clearnet LOCKED — lo + 10.0.0.0/24)
 | Piece | Role |
 | --- | --- |
 | Host | Admin + orchestration; never daily apps |
-| netVM | Proxy broker; `ip_forward=0`; guests SOCKS-only |
-| usbVM | Physical USB → zones via usbip |
+| netVM | Proxy broker; `ip_forward=0`; guests SOCKS-only; TUI kind incl. disposable |
+| usbVM | Physical USB → zones via usbip; TUI kind incl. disposable |
 | Zone | One VM = one trust domain |
 | TUI `bunker` | **All daily ops** for non-experts: start, USB, host-net, sflc boot, CRUD, files |
 | Shufflecake | Hidden zone disks (real `dm_sflc`) |

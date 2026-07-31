@@ -64,6 +64,24 @@ sys.exit(0 if (z.get('template')=='iso' or bool((z.get('iso') or '').strip())) e
 " 2>/dev/null
 }
 
+# netVM / usbVM brokers (also role=broker in zones.json)
+bunker_zone_is_broker() {
+  case "$1" in net|usb) return 0;; esac
+  python3 -c "
+import json,sys
+z=json.load(open('$(bunker_zones_json)')).get('$1') or {}
+sys.exit(0 if z.get('role')=='broker' else 1)
+" 2>/dev/null
+}
+
+bunker_zone_is_disposable() {
+  python3 -c "
+import json,sys
+z=json.load(open('$(bunker_zones_json)')).get('$1') or {}
+sys.exit(0 if (z.get('kind')=='disposable' or z.get('disposable') is True) else 1)
+" 2>/dev/null
+}
+
 bunker_qmp_sock() {
   local vm=$1 cand
   for cand in "/run/microvm/${vm}.sock" "/var/lib/microvms/$vm/sock" "/var/lib/microvms/$vm/qemu.sock"; do

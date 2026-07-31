@@ -27,7 +27,13 @@
       appZones = import ./config/zones.nix;
       deniableSlots = import ./config/slots.nix;
       isIsoZone = zone: (zone.template or "") == "iso" || ((zone.iso or "") != "");
-      nixosAppZones = lib.filterAttrs (_: z: !(isIsoZone z)) appZones;
+      isBrokerZone =
+        name: zone:
+        name == "net" || name == "usb" || (zone.role or "") == "broker";
+      # App zones only — net/usb are separate broker guests (still listed in zones.json for TUI kind/CRUD)
+      nixosAppZones = lib.filterAttrs (
+        name: z: !(isIsoZone z) && !(isBrokerZone name z)
+      ) appZones;
       # Public zones + anonymous deniable slots (d1..dN). Hidden names live only in SFLC.
       allBuildZones = nixosAppZones // deniableSlots;
 

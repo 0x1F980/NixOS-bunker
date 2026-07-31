@@ -62,7 +62,7 @@ Space panic (keep|lock|wipe)        p ARM         w save        q quit
 | Flyt fil mellem VMs | `f` |
 | Hide / unlock | `i` / `u` |
 
-Brokers: **netVM** og **usbVM** er **1→many**. Fil-copy er zone↔zone via host.
+Brokers: **netVM** og **usbVM** er **1→many**. De står i zone-listen med `[BROKER]` — `t` skifter kind (`appvm` / `disposable` / `template`) som andre VMs. **Disposable broker** wiped disk ved hver start (frisk mixnet/USB-state). Kan ikke slettes/omdøbes. Fil-copy er zone↔zone via host.
 
 - **`w`** gemmer public `zones.json` (+ hidden manifests hvis unlock’et).  
 - Efter store politik-ændringer: `h`→allow → rebuild i terminal → `h`→lock → `s` start zone.

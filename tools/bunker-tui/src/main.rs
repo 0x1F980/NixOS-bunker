@@ -27,7 +27,7 @@ const PANIC: &[&str] = &["keep", "lock", "wipe"];
 const COLORS: &[&str] = &[
     "red", "orange", "yellow", "green", "blue", "purple", "black", "gray",
 ];
-const HELP: &str = "s start  e term  v usb  h host-net  b sflc-boot  |  a add  d del  r rename  c color  t type  n net  i hide  u unlock  o iso  f file  Space panic  p ARM  w save  q";
+const HELP: &str = "s start  e term  v usb  h host-net  b sflc-boot  |  a add  d del  r rename  c color  t type(net/usb too)  n net  i hide  u unlock  o iso  f file  Space panic  p ARM  w save  q";
 
 #[derive(Clone)]
 enum Mode {
@@ -115,6 +115,13 @@ fn kind_of(z: &Value) -> &str {
         } else {
             "appvm"
         })
+}
+
+/// netVM / usbVM infrastructure brokers (editable kind, not deletable).
+fn is_broker(name: &str, z: &Value) -> bool {
+    name == "net"
+        || name == "usb"
+        || z.get("role").and_then(|x| x.as_str()) == Some("broker")
 }
 
 fn panic_of(z: &Value) -> &str {
@@ -372,6 +379,10 @@ impl App {
         let Some(n) = self.sel().map(str::to_string) else {
             return;
         };
+        if key == "internet" && is_broker(&n, &self.zones[&n]) {
+            self.status = format!("{n}: broker — internet N/A (provides SOCKS/USB to zones)");
+            return;
+        }
         if key == "internet" && is_hidden(&self.zones[&n]) {
             let slot = self.zones[&n]
                 .get("slot")
@@ -398,7 +409,17 @@ impl App {
     }
 
     fn cycle_kind(&mut self) {
+        let Some(n) = self.sel().map(str::to_string) else {
+            return;
+        };
+        let broker = is_broker(&n, &self.zones[&n]);
         self.cycle("kind", KIND);
+        if broker {
+            self.status = format!(
+                "{n}: kind → {} (broker; disposable wipes disk on each start)",
+                kind_of(&self.zones[&n])
+            );
+        }
     }
 
     fn cycle_color(&mut self) {
@@ -425,6 +446,10 @@ impl App {
         let Some(n) = self.sel().map(str::to_string) else {
             return;
         };
+        if is_broker(&n, &self.zones[&n]) {
+            self.status = format!("{n}: broker — cannot hide (infrastructure)");
+            return;
+        }
         let hidden = is_hidden(&self.zones[&n]);
         if hidden {
             // Unhide → public (drops slot; guest becomes public name — needs rebuild if was slot-only)
@@ -476,6 +501,10 @@ impl App {
     }
 
     fn add_zone(&mut self, name: String) {
+        if name == "net" || name == "usb" {
+            self.status = "net/usb are fixed brokers — select them and press t for kind".into();
+            return;
+        }
         if !valid_name(&name) || self.zones.contains_key(&name) {
             self.status = "bad or duplicate name".into();
             return;
@@ -522,6 +551,10 @@ impl App {
         let Some(old) = self.sel().map(str::to_string) else {
             return;
         };
+        if is_broker(&old, &self.zones[&old]) {
+            self.status = format!("{old}: broker — cannot rename (fixed net/usb)");
+            return;
+        }
         if !valid_name(&new) || self.zones.contains_key(&new) {
             self.status = "bad or duplicate name".into();
             return;
@@ -541,6 +574,10 @@ impl App {
         let Some(n) = self.sel().map(str::to_string) else {
             return;
         };
+        if is_broker(&n, &self.zones[&n]) {
+            self.status = format!("{n}: broker — ISO not allowed");
+            return;
+        }
         let o = self.zones.get_mut(&n).unwrap().as_object_mut().unwrap();
         if path.is_empty() {
             o.remove("iso");
@@ -565,6 +602,10 @@ impl App {
         let Some(n) = self.sel().map(str::to_string) else {
             return;
         };
+        if is_broker(&n, &self.zones[&n]) {
+            self.status = format!("{n}: broker — cannot delete (use t for disposable)");
+            return;
+        }
         self.zones.remove(&n);
         self.refresh_names();
         self.dirty = true;
@@ -875,14 +916,25 @@ fn draw(f: &mut Frame, app: &App) {
                     .get("iso")
                     .and_then(|x| x.as_str())
                             .is_some_and(|s| !s.is_empty());
+                    let broker = is_broker(n, z);
                     ListItem::new(format!(
-                        "{n:<12} {kind:<11} {color:<7} net={net:<7} hide={hide} panic={panic}{iso}",
+                        "{n:<12} {kind:<11} {color:<7} net={net:<7} hide={hide} panic={panic}{tag}",
                         kind = kind_of(z),
                         color = z.get("color").and_then(|x| x.as_str()).unwrap_or("gray"),
-                        net = z.get("internet").and_then(|x| x.as_str()).unwrap_or("nym"),
+                        net = if broker {
+                            "broker"
+                        } else {
+                            z.get("internet").and_then(|x| x.as_str()).unwrap_or("nym")
+                        },
                         hide = if is_hidden(z) { "yes" } else { "-" },
                         panic = panic_of(z),
-                        iso = if iso { " [ISO]" } else { "" },
+                        tag = if broker {
+                            " [BROKER]"
+                        } else if iso {
+                            " [ISO]"
+                        } else {
+                            ""
+                        },
                     ))
         })
         .collect();

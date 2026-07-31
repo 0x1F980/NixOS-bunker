@@ -58,10 +58,18 @@ bridge() {
 start_one() {
   local z=$1
   local rid
-  require_unlocked "$z"
+  # Brokers (net/usb) are always startable; app zones need unlock if hidden
+  if ! bunker_zone_is_broker "$z"; then
+    require_unlocked "$z"
+  fi
   rid=$(bunker_zone_runtime_id "$z")
   [[ -n $rid ]] || rid=$z
   bridge
+  # Disposable: wipe disk before start (incl. disposable netVM / usbVM)
+  if bunker_zone_is_disposable "$z"; then
+    echo "disposable $z — wiping before start"
+    "$SDIR/zone-wipe.sh" "$z" || true
+  fi
   if bunker_zone_is_iso "$z"; then
     "$SDIR/iso-run.sh" "$z" &
   elif systemctl cat "microvm@${rid}.service" &>/dev/null; then
@@ -89,11 +97,12 @@ start_one() {
   exit 1
 }
 
-mapfile -t APP < <(zones)
+mapfile -t APP < <(zones | grep -vxE 'net|usb' || true)
 if [[ $TARGET == all ]]; then
   start_one net
   sleep 2
-  for z in usb "${APP[@]}"; do
+  start_one usb
+  for z in "${APP[@]}"; do
     [[ -n $z ]] && start_one "$z"
   done
   exit 0

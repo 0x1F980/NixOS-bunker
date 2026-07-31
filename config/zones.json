@@ -1,4 +1,38 @@
 {
+  "net": {
+    "role": "broker",
+    "template": "net",
+    "kind": "appvm",
+    "ip": "10.0.0.1",
+    "mac": "02:b0:00:00:00:01",
+    "socks": null,
+    "mem": 1024,
+    "diskGb": 8,
+    "vcpu": 2,
+    "disposable": false,
+    "color": "orange",
+    "internet": "none",
+    "usb": [],
+    "apps": [],
+    "panic": "keep"
+  },
+  "usb": {
+    "role": "broker",
+    "template": "usb",
+    "kind": "appvm",
+    "ip": "10.0.0.2",
+    "mac": "02:b0:00:00:00:02",
+    "socks": null,
+    "mem": 512,
+    "diskGb": 4,
+    "vcpu": 1,
+    "disposable": false,
+    "color": "gray",
+    "internet": "none",
+    "usb": [],
+    "apps": [],
+    "panic": "keep"
+  },
   "personal": {
     "template": "personal",
     "kind": "appvm",
