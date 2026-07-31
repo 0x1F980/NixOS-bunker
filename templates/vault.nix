@@ -6,7 +6,7 @@
     keepassxc
     pass
     gnupg
-    kleopatra
+    kdePackages.kleopatra
     nitrokey-app
     age
     libsodium

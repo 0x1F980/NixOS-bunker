@@ -54,15 +54,23 @@ for L in sorted(unlocked, key=lambda x: int(x) if x.isdigit() else 0):
         continue
     hidden = json.load(open(hz))
     for name, hzcfg in hidden.items():
+        if name in public:
+            print(f"WARN: hidden name '{name}' collides with public zone — skipped", file=sys.stderr)
+            continue
         slot_id = hzcfg.get("slot") or ""
-        slot = dict(slots.get(slot_id) or {})
-        # Slot provides build-time fields; hidden overlay for UI/ops
-        entry = {**slot, **{k: v for k, v in hzcfg.items() if v is not None}}
+        if not slot_id or slot_id not in slots:
+            print(f"WARN: hidden '{name}' missing/unknown slot {slot_id!r} — skipped", file=sys.stderr)
+            continue
+        slot = dict(slots[slot_id])
+        # Slot = build-time truth; overlay only ops/UI fields
+        entry = dict(slot)
+        for k in ("color", "usb", "apps", "panic", "layer"):
+            if k in hzcfg and hzcfg[k] is not None:
+                entry[k] = hzcfg[k]
         entry["invisible"] = True
         entry["layer"] = int(hzcfg.get("layer") or L)
         entry["slot"] = slot_id
-        if slot_id and "ip" not in entry and slot:
-            entry.update({k: slot[k] for k in ("ip", "mac", "socks", "template", "mem", "vcpu", "internet", "kind") if k in slot and k not in entry})
+        # internet/template/ip always from slot (guest image)
         merged[name] = entry
         visible.append(name)
 with open(merged_path, "w") as f:
@@ -99,22 +107,42 @@ PY
 
 link_slot() {
   local slot=$1 L=$2 d=/var/lib/microvms/$slot s
+  [[ -n $slot ]] || return 1
   s="$(ldir "$L")/microvms/$slot"
   mkdir -p "$s" /var/lib/microvms
-  if [[ -L $d ]]; then rm -f "$d"
-  elif [[ -d $d && ! -L $d ]]; then
-    echo "ERROR: $d is a real directory — move aside before hide" >&2
-    return 1
+  if [[ -L $d ]]; then
+    ln -sfn "$s" "$d"
+    return 0
+  fi
+  if [[ -d $d && ! -L $d ]]; then
+    # Migrate host-local disk into the deniable layer (first hide after start)
+    echo "WARN: migrating $d → $s (was not on Shufflecake layer)" >&2
+    mkdir -p "$(dirname "$s")"
+    if [[ -e $s ]]; then
+      echo "ERROR: both $d and $s exist — move one aside" >&2
+      return 1
+    fi
+    mv "$d" "$s"
   fi
   ln -sfn "$s" "$d"
 }
+
 unlink_slot() { [[ -L /var/lib/microvms/$1 ]] && rm -f "/var/lib/microvms/$1"; }
+
+link_all_unlocked() {
+  local name slot zl
+  while IFS=$'\t' read -r name slot zl; do
+    [[ -z ${slot:-} || -z ${zl:-} ]] && continue
+    link_slot "$slot" "$zl" || echo "WARN: link_slot $slot L$zl failed" >&2
+  done < <(zones_on_layer)
+}
 
 sync_vis() {
   ensure
   local vis
   vis="$(do_merge)"
   printf '%s\n' "$vis" >"$(bunker_visible_zones_file)"
+  link_all_unlocked
   rm -f /run/bunker/xdg/applications/qube-invisible-*.desktop
   python3 -c "import json;print('\n'.join(json.load(open('$(bunker_visible_zones_file)'))))" 2>/dev/null | while read -r n; do
     [[ -z $n ]] && continue
@@ -317,7 +345,7 @@ do_unlock() {
   local name slot zl
   while IFS=$'\t' read -r name slot zl; do
     [[ -n ${name:-} ]] || continue
-    [[ ${zl:-0} -ge 1 && ${zl:-0} -le $L ]] && link_slot "$slot" "$zl"
+    [[ ${zl:-0} -ge 1 && ${zl:-0} -le $L ]] && link_slot "$slot" "$zl" || echo "WARN: link $slot failed" >&2
   done < <(zones_on_layer)
   sync_vis
   echo "OK unlocked layers 1..$L on $dev"

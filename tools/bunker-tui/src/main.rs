@@ -290,6 +290,14 @@ impl App {
 
     fn save(&mut self) -> io::Result<()> {
         // Split: public (no slot) → zones.json; hidden by layer → SFLC write-hidden
+        let unlocked = unlocked_layers();
+        if !unlocked.is_empty() && !merged_path().is_file() {
+            let _ = run_root("bunker-sflc", &["sync"]);
+        }
+        if !unlocked.is_empty() && !merged_path().is_file() {
+            self.status = "save aborted: SFLC unlocked but merge missing — u unlock / sync".into();
+            return Ok(());
+        }
         let mut public = Map::new();
         let mut by_layer: std::collections::BTreeMap<u64, Map<String, Value>> =
             std::collections::BTreeMap::new();
@@ -304,7 +312,8 @@ impl App {
                 let mut hz = Map::new();
                 hz.insert("slot".into(), json!(slot));
                 hz.insert("layer".into(), json!(L));
-                for k in ["color", "internet", "panic", "template", "kind"] {
+                // Ops/UI only — guest net/template come from slot at build time
+                for k in ["color", "panic"] {
                     if let Some(v) = z.get(k) {
                         hz.insert(k.into(), v.clone());
                     }
@@ -324,14 +333,21 @@ impl App {
                 public.insert(name.clone(), Value::Object(o));
             }
         }
-        // Ensure unlocked layers get an explicit write (possibly empty = clear)
-        for L in unlocked_layers() {
+        // Write every unlocked layer (empty = clear deleted/unhidden names). Safe only
+        // when merge was loaded into self.zones (guarded above).
+        for &L in &unlocked {
             by_layer.entry(L).or_default();
         }
-        fs::write(
+        if let Err(e) = fs::write(
             &self.path,
             serde_json::to_string_pretty(&Value::Object(public))?,
-        )?;
+        ) {
+            self.status = format!(
+                "save failed (is {} writable? use /var/lib/bunker/zones.json): {e}",
+                self.path.display()
+            );
+            return Ok(());
+        }
         for (L, hzmap) in by_layer {
             let body = serde_json::to_string_pretty(&Value::Object(hzmap))?;
             let (ok, msg) = run_root_stdin(
@@ -356,6 +372,16 @@ impl App {
         let Some(n) = self.sel().map(str::to_string) else {
             return;
         };
+        if key == "internet" && is_hidden(&self.zones[&n]) {
+            let slot = self.zones[&n]
+                .get("slot")
+                .and_then(|x| x.as_str())
+                .unwrap_or("?");
+            self.status = format!(
+                "{n}: net fixed by slot {slot} — edit config/slots.json + rebuild"
+            );
+            return;
+        }
         let cur = self.zones[&n]
             .get(key)
             .and_then(|x| x.as_str())
@@ -598,18 +624,16 @@ impl App {
             self.status = "term: select a zone first".into();
             return;
         };
-        // Qubes-like: open a new terminal into the zone (don't take over the TUI).
         let try_spawn = |bin: &str, args: &[&str]| -> bool {
             Command::new(bin).args(args).spawn().is_ok()
         };
         let ok = try_spawn("kgx", &["-e", "bunker-term", &zone])
             || try_spawn("gnome-terminal", &["--", "bunker-term", &zone])
-            || try_spawn("xterm", &["-e", "bunker-term", &zone])
-            || try_spawn("bunker-term", &[&zone]);
+            || try_spawn("xterm", &["-e", "bunker-term", &zone]);
         self.status = if ok {
             format!("term → {zone}")
         } else {
-            format!("term: install kgx/gnome-terminal, or: bunker-term {zone}")
+            format!("term: no GUI terminal — run: bunker-term {zone}")
         };
     }
 
@@ -897,6 +921,7 @@ fn main() -> io::Result<()> {
         .map(PathBuf::from)
         .or_else(|| {
             [
+                PathBuf::from("/var/lib/bunker/zones.json"),
                 PathBuf::from("config/zones.json"),
                 PathBuf::from("/etc/bunker/zones.json"),
             ]
@@ -905,6 +930,10 @@ fn main() -> io::Result<()> {
         })
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "zones.json"))?;
     let mut app = App::load(path)?;
+    if !unlocked_layers().is_empty() {
+        let _ = run_root("bunker-sflc", &["sync"]);
+        let _ = app.reload_view();
+    }
     enable_raw_mode()?;
     let mut out = io::stdout();
     execute!(out, EnterAlternateScreen)?;

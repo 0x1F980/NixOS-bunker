@@ -4,7 +4,12 @@ bunker_repo_root() { cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd; }
 bunker_public_zones_json() {
   [[ -n ${BUNKER_ZONES_JSON:-} && -f $BUNKER_ZONES_JSON ]] && { echo "$BUNKER_ZONES_JSON"; return; }
   local root=${BUNKER_ROOT:-$(bunker_repo_root)} p
-  for p in "$root/config/zones.json" "$HOME/NixOS-bunker/config/zones.json" /etc/bunker/zones.json; do
+  # Mutable SoT on installed host first (etc is nix-store immutable)
+  for p in /var/lib/bunker/zones.json \
+    "$root/config/zones.json" \
+    "$HOME/NixOS-bunker/config/zones.json" \
+    "$HOME/nixos-bunker/config/zones.json" \
+    /etc/bunker/zones.json; do
     [[ -f $p ]] && { echo "$p"; return; }
   done
   echo "$root/config/zones.json"

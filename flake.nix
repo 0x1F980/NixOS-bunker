@@ -81,7 +81,8 @@
           inherit system;
           specialArgs = {
             inherit self microvm;
-            bunkerAppZones = appZones;
+            # Include deniable slots so host attaches vm-d1.. taps to br-bunker
+            bunkerAppZones = allBuildZones;
             bunkerPublicZones = appZones;
           };
           modules = [

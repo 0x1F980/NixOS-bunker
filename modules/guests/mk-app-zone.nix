@@ -32,8 +32,12 @@ let
       "tor-nym" = 5000;
       "i2p-nym" = 6000;
     }
-    .${internet} or 0;
-  socksPort = if socks == null || internet == "none" then null else socks + socksOffset;
+    .${internet} or null;
+  socksPort =
+    if socks == null || internet == "none" || socksOffset == null then
+      null
+    else
+      socks + socksOffset;
   useProxy = socksPort != null;
 in
 {

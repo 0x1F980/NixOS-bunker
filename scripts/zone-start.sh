@@ -31,6 +31,10 @@ zones() {
 
 require_unlocked() {
   local z=$1
+  if ! python3 -c "import json,sys;sys.exit(0 if sys.argv[1] in json.load(open(sys.argv[2])) else 1)" "$z" "$ZJ" 2>/dev/null; then
+    echo "ERROR: unknown zone '$z' — unlock SFLC (u) if hidden, or check zones.json" >&2
+    exit 1
+  fi
   # Public zones (no slot / not invisible) always OK
   python3 - "$ZJ" "$z" <<'PY' || return 0
 import json,sys

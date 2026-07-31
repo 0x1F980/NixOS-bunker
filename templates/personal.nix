@@ -4,13 +4,12 @@
 {
   imports = [ ./desktop.nix ];
 
-  # Obsidian is unfree.
   nixpkgs.config.allowUnfreePredicate =
     pkg: builtins.elem (lib.getName pkg) [ "obsidian" ];
 
   environment.systemPackages = with pkgs; [
     # Security / crypto / wipe
-    kleopatra
+    kdePackages.kleopatra
     nitrokey-app
     clamav
     libsodium
@@ -24,7 +23,7 @@
     hackrf
     rtl_433
     python3Packages.meshtastic
-    frigate
+    # frigate: heavy NVR — enable when you have cameras; keep out of default guest build
 
     # Comms
     thunderbird
@@ -43,15 +42,14 @@
     kdenlive
     libreoffice
     stellarium
-    marble
+    kdePackages.marble
 
-    # System / backup / USB tools
+    # System / backup (ventoy is unfree+insecure — use host ISO tools instead)
     glances
     mission-center
     zellij
     borgbackup
     restic
-    ventoy-full
 
     # Voice anonymize (pitch / formant via Easy Effects)
     easyeffects
@@ -60,6 +58,5 @@
     metadata-cleaner
   ];
 
-  # Nitrokey / smartcard
   services.pcscd.enable = true;
 }

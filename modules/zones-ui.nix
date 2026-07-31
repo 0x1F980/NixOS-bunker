@@ -31,7 +31,18 @@ let
   ) visible;
   bunkerTui = pkgs.callPackage ../tools/bunker-tui { };
   bunker = pkgs.writeShellScriptBin "bunker" ''
-    [[ -n ''${BUNKER_ZONES_JSON:-} ]] || for p in "$HOME/NixOS-bunker/config/zones.json" /etc/bunker/zones.json; do
+    [[ -n ''${BUNKER_ZONES_JSON:-} ]] || for p in \
+      /var/lib/bunker/zones.json \
+      "$HOME/nixos-bunker/config/zones.json" \
+      "$HOME/NixOS-bunker/config/zones.json" \
+      /etc/bunker/zones.json; do
+      [[ -f $p && -w $p ]] && export BUNKER_ZONES_JSON=$p && break
+    done
+    [[ -n ''${BUNKER_ZONES_JSON:-} ]] || for p in \
+      /var/lib/bunker/zones.json \
+      "$HOME/nixos-bunker/config/zones.json" \
+      "$HOME/NixOS-bunker/config/zones.json" \
+      /etc/bunker/zones.json; do
       [[ -f $p ]] && export BUNKER_ZONES_JSON=$p && break
     done
     BIN=${bunkerTui}/bin/bunker-tui

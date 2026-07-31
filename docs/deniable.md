@@ -52,3 +52,5 @@ Then lock all Shufflecake layers + best-effort RAM wipe.
 - Shufflecake tool + `dm_sflc` + image file presence
 - Anonymous capacity `d1..dN` in the flake / nix store
 - Templates such as `radio.nix` in a git checkout under `$HOME` if you leave the repo there
+
+**Ops note:** editable public registry on the host is `/var/lib/bunker/zones.json` (seeded from `/etc/bunker/zones.json`). Do not expect `/etc/bunker/zones.json` to be writable.

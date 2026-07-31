@@ -61,11 +61,25 @@ in
       ExecStart = pkgs.writeShellScript "bunker-bridge-attach" ''
         set -euo pipefail
         ${pkgs.iproute2}/bin/ip link set br-bunker up || true
+        # Known taps from flake zones/slots + any live vm-* (deniable / late start)
         for tap in ${lib.concatStringsSep " " tapNames}; do
           if ${pkgs.iproute2}/bin/ip link show "$tap" >/dev/null 2>&1; then
-            ${pkgs.iproute2}/bin/ip link set "$tap" master br-bunker
-            ${pkgs.iproute2}/bin/ip link set "$tap" up
+            ${pkgs.iproute2}/bin/ip link set "$tap" master br-bunker 2>/dev/null || true
+            ${pkgs.iproute2}/bin/ip link set "$tap" up 2>/dev/null || true
           fi
+        done
+        ${pkgs.iproute2}/bin/ip -o link show type tun 2>/dev/null | awk -F': ' '{print $2}' | cut -d@ -f1 | while read -r tap; do
+          case "$tap" in
+            vm-*)
+              ${pkgs.iproute2}/bin/ip link set "$tap" master br-bunker 2>/dev/null || true
+              ${pkgs.iproute2}/bin/ip link set "$tap" up 2>/dev/null || true
+              ;;
+          esac
+        done
+        # Also match tap-style names from microvm
+        for tap in $(${pkgs.iproute2}/bin/ip -o link show | awk -F': ' '$2 ~ /^vm-/ {gsub(/@.*/, "", $2); print $2}'); do
+          ${pkgs.iproute2}/bin/ip link set "$tap" master br-bunker 2>/dev/null || true
+          ${pkgs.iproute2}/bin/ip link set "$tap" up 2>/dev/null || true
         done
       '';
     };
