@@ -1,21 +1,32 @@
-NixOS-bunker — short cheat sheet (see docs/USER-GUIDE.md)
-========================================================
+NixOS-bunker — short cheat sheet (see docs/USER-GUIDE.md · man bunker)
+=====================================================================
 
 MODEL
   Host clearnet LOCKED. Work in zones. netVM = SOCKS only (1→many). usbVM = USB (1→many).
-  kind=appvm|disposable|template  net=nym|i2p|tor|none
-  color · invisible+Shufflecake · panic keep|lock|wipe · ISO
+  kind=appvm|disposable|template
+  net=nym|i2p|tor|nym-tor|i2p-tor|tor-nym|i2p-nym|none
+  cascades = inner-outer (Tor↔Nym, Tor↔I2P, Nym↔Tor/I2P); not I2P-as-outer
+  color · deniable hide (SFLC) · panic keep|lock|wipe · ISO
 
 TUI (bunker) — primary UI for non-experts
-  s start (net|usb|all|zone)   v usb vid:pid   h host-net   b sflc-boot
+  s start (net|usb|all|zone)   e term into zone   v usb vid:pid
+  h host-net   b sflc-boot
   a add  d del  r rename  c color  t type  n net  i hide
   u unlock  o iso  f file  Space panic  p ARM  w save  q quit
 
-ALSO CLI (optional)
-  bunker-zone-start · bunker-host-net · bunker-sflc · bunker-file · bunker-usb-*
+NOT IN TUI (use CLI)
+  nixos-rebuild          terminal (TUI h allow/lock around it)
+  clipboard              bunker-clip send|copy
+  disposable wipe        bunker-wipe ZONE
+  apps[] / mem / diskGb  bunker-zone set … / JSON + rebuild
+  per-app qube menu      zone launcher starts VM; apps inside
+
+ALSO CLI
+  bunker-zone-start · bunker-term · bunker-host-net · bunker-sflc
+  bunker-file · bunker-usb-* · bunker-wipe
 
 REBUILD
   TUI h→a  then  nixos-rebuild switch --flake .#host-x86_64-linux  then  h→l
 
 DOCS
-  docs/USER-GUIDE.md   docs/DEV-GUIDE.md   docs/ARCHITECTURE.md
+  docs/USER-GUIDE.md   docs/egress.md   docs/deniable.md   man bunker

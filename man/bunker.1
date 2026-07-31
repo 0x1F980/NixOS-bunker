@@ -1,26 +1,123 @@
 .TH BUNKER 1 "July 2026" "nixos-bunker" "NixOS-bunker Manual"
 .SH NAME
-bunker \- hardened microVM workstation
+bunker \- hardened microVM workstation operator UI and tools
 .SH SYNOPSIS
 .B bunker
 .br
 .B bunker-zone
-.RI [ list | add | set | rm ]
+.RI [ list | add | set | rm | ... ]
 .br
 .B bunker-zone-start
 .IR zone
+.br
+.B bunker-term
+.IR zone
+.br
+.B bunker-clip
+.RI [ send | copy ]
+.IR ...
+.br
+.B bunker-file
+copy
+.IR srcZone:/path
+.IR dstZone:/path
+.br
+.B bunker-wipe
+.IR zone
+.br
+.B bunker-host-net
+.RI [ allow | lock | status ]
+.br
+.B bunker-sflc
+.RI [ bootstrap | unlock | lock | status ]
 .SH DESCRIPTION
-Thin GNOME host. Apps in microVM zones. Brokers: net (Tor), usb.
-Operator UI:
-.BR bunker
-(ratatui). Fields:
-.BR apps[] ,
-.BR mem ,
-.BR invisible ,
-.BR layer ,
-.B panic
-(keep|lock|wipe).
+Thin GNOME host. Daily apps run in microVM
+.BR zones .
+Brokers:
+.B net
+(SOCKS: Nym / I2P / Tor / Tor-over-Nym) and
+.B usb
+(usbip, one device to one zone).
+.P
+Primary UI:
+.B bunker
+(ratatui TUI). Policy lives in
+.IR config/zones.json
+(public) and Shufflecake
+.I hidden-zones.json
+(deniable).
+.SH TUI KEYS
+.TS
+l l.
+s	start net / usb / zone / all
+e	terminal into selected zone (new window → bunker-term)
+v	USB attach/detach for selected zone
+h	host clearnet allow / lock / status
+b	Shufflecake bootstrap
+a / d / r	add / delete / rename zone
+c / t / n	color / kind / internet backend
+i / u	hide (deniable) / unlock layer
+o	ISO path for zone
+f	mediated file copy
+Space	cycle panic keep|lock|wipe
+p	arm panic
+w	save
+?	help
+q	quit
+.TE
+.SH INTERNET BACKENDS
+Set per zone (TUI
+.BR n
+or
+.BR "bunker-zone set … internet=" ).
+.TS
+l l.
+nym	SOCKS → Nym mixnet
+i2p	SOCKS → i2pd
+tor	SOCKS → Tor (direct)
+nym-tor	cascade: Tor-over-Nym
+i2p-tor	cascade: Tor-over-I2P
+tor-nym	cascade: Nym-over-Tor
+i2p-nym	cascade: Nym-over-I2P
+none	air-gap style (LAN only, no WAN SOCKS)
+.TE
+.P
+Cascade names are
+.BR inner-outer
+(guest speaks to outer). I2P-as-outer cascades (nym-i2p / tor-i2p) are
+.B not
+supported — see
+.IR docs/egress.md .
+No 3+ hop chains.
+.SH NOT IN THE TUI
+Use CLI / rebuild as below (TUI can still
+.B h
+allow/lock around rebuilds).
+.TS
+l l.
+nixos-rebuild	terminal after TUI h→allow; then h→lock
+clipboard	bunker-clip send|copy
+manual disposable wipe	bunker-wipe ZONE (or panic wipe)
+edit apps[] / mem / diskGb	bunker-zone set … / edit JSON; then rebuild
+per-app “open in qube” menu	GNOME zone launchers start the VM; run apps inside
+.TE
+.SH DENIABLE ZONES
+Hidden friendly names are
+.B not
+in public
+.IR zones.json .
+Unlock (TUI
+.BR u )
+merges
+.I layerN/hidden-zones.json
+and maps names to anonymous slots
+.BR d1..dN .
+See
+.IR docs/deniable.md .
 .SH SEE ALSO
+.IR docs/USER-GUIDE.md ,
 .IR docs/deniable.md ,
 .IR docs/egress.md ,
-.IR docs/usb.md
+.IR docs/usb.md ,
+.IR docs/file-copy.md ,
+.IR docs/ADMIN-RECOVER.md

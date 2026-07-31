@@ -66,7 +66,7 @@ PY
       "") kind=appvm; [[ $disposable == true ]] && kind=disposable;;
       *) echo "bad kind"; exit 1;;
     esac
-    [[ $internet =~ ^(nym|i2p|tor|none)$ ]] || { echo "internet=nym|i2p|tor|none"; exit 1; }
+    [[ $internet =~ ^(nym|i2p|tor|nym-tor|i2p-tor|tor-nym|i2p-nym|none)$ ]] || { echo "internet=nym|i2p|tor|nym-tor|i2p-tor|tor-nym|i2p-nym|none"; exit 1; }
     read -r IP MAC SOCKS < <(py <<'PY'
 import json,os
 z=json.load(open(os.environ["ZONE_JSON"]))
@@ -110,7 +110,7 @@ for pair in os.environ["ARGS"].split():
   assert v in ("appvm","disposable","template"); z[n][k]=v; z[n]["disposable"]=v=="disposable"
  elif k in ("template","ip","mac","color","internet","iso","boot","disk","panic"):
   if k=="panic": assert v in ("keep","lock","wipe")
-  if k=="internet": assert v in ("nym","i2p","tor","none")
+  if k=="internet": assert v in ("nym","i2p","tor","nym-tor","i2p-tor","tor-nym","i2p-nym","none")
   z[n][k]=v
   if k=="iso" and v: z[n]["template"]="iso"
  elif k in ("layer","invisible"):

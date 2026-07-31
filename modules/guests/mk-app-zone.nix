@@ -21,16 +21,20 @@ let
   internet = zone.internet or "nym";
   socks = zone.socks or null;
   extraApps = map (n: pkgs.${n}) (zone.apps or [ ]);
-  socksPort =
-    if socks == null then
-      null
-    else if internet == "i2p" then
-      socks + 1000
-    else if internet == "tor" then
-      socks + 2000
-    else
-      socks; # nym default
-  useProxy = socksPort != null && internet != "none";
+  # Port offsets on netVM (see modules/guests/net.nix / docs/egress.md)
+  socksOffset =
+    {
+      nym = 0;
+      i2p = 1000;
+      tor = 2000;
+      "nym-tor" = 3000;
+      "i2p-tor" = 4000;
+      "tor-nym" = 5000;
+      "i2p-nym" = 6000;
+    }
+    .${internet} or 0;
+  socksPort = if socks == null || internet == "none" then null else socks + socksOffset;
+  useProxy = socksPort != null;
 in
 {
   imports = [ ../../templates/${zone.template}.nix ];

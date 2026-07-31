@@ -45,33 +45,48 @@ Shufflecake once: TUI **`b`**. Host updates: TUI **`h`** → allow/lock.
 ## 3. Ratatui (`bunker`) — alt til den ikke-tekniske bruger
 
 ```
-s start     v usb       h host-net    b sflc-bootstrap
-a add       d del       r rename      c color     t type
-n net       i hide      u unlock      o iso       f file copy
-Space panic (keep|lock|wipe)          p ARM       w save      q quit
+s start     e term      v usb       h host-net    b sflc-bootstrap
+a add       d del       r rename    c color       t type
+n net       i hide      u unlock    o iso         f file copy
+Space panic (keep|lock|wipe)        p ARM         w save        q quit
 ```
 
 | Behov | Tast |
 | --- | --- |
 | Start netVM / usbVM / zone / all | `s` → `net` / `usb` / `all` / zonenavn |
+| Terminal ind i valgt zone (som Qubes) | `e` → nyt vindue med `bunker-term` |
 | USB til valgt zone (via usbVM) | `v` → `vid:pid` (`-vid:pid` = detach) |
 | Host WAN til updates | `h` → `a` allow / `l` lock / `t` status |
 | Shufflecake første gang | `b` → passphrase pr. lag |
-| Net-backend pr. zone (via netVM) | `n` |
+| Net-backend pr. zone (via netVM) | `n` (`nym`/`i2p`/`tor` + cascades `nym-tor`/`i2p-tor`/`tor-nym`/`i2p-nym`/`none`) |
 | Flyt fil mellem VMs | `f` |
 | Hide / unlock | `i` / `u` |
 
 Brokers: **netVM** og **usbVM** er **1→many**. Fil-copy er zone↔zone via host.
 
-- **`w`** gemmer `zones.json`.  
+- **`w`** gemmer public `zones.json` (+ hidden manifests hvis unlock’et).  
 - Efter store politik-ændringer: `h`→allow → rebuild i terminal → `h`→lock → `s` start zone.
+
+### Ikke i TUI (brug CLI / man)
+
+| Handling | Hvor i stedet |
+| --- | --- |
+| Selve `nixos-rebuild` | Terminal (`h` allow/lock omkring den) |
+| Clipboard | `bunker-clip send\|copy` |
+| Manuel disposable-wipe | `bunker-wipe <zone>` (eller panic wipe) |
+| Redigér `apps[]` / `mem` / `diskGb` detaljeret | `bunker-zone set …` / JSON → rebuild |
+| Qubes-stil “åbn app i qube”-GUI pr. program | Zone-launcher starter VM’en; kør apps inde i zonen |
+
+Se også `man bunker` / `bunker-help`.
 ---
 
 ## 4. Networking
 
 - Guests have **no default gateway**. Traffic is **SOCKS-only** via netVM.  
-- Per zone: `internet` = `nym` | `i2p` | `tor` | `none` (TUI `n`).  
-- DNS for guests: Tor DNSPort on `10.0.0.1`.  
+- Per zone: `internet` = `nym` | `i2p` | `tor` | `nym-tor` | `i2p-tor` | `tor-nym` | `i2p-nym` | `none` (TUI `n`).  
+  - Cascades are **`inner-outer`** (guest → outer → inner). Example: `i2p-tor` = Tor-over-I2P.  
+  - I2P-as-outer (`nym-i2p` / `tor-i2p`) is **not** supported — see [egress.md](egress.md).  
+- DNS for guests: Tor DNSPort on `10.0.0.1` (or SOCKS DNS via `socks5h` for cascade).  
 - Details: [egress.md](egress.md).
 
 **Updates on host:**

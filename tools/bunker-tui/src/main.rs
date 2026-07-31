@@ -19,13 +19,15 @@ use std::{
     process::{Command, Stdio},
 };
 
-const NET: &[&str] = &["nym", "i2p", "tor", "none"];
+const NET: &[&str] = &[
+    "nym", "i2p", "tor", "nym-tor", "i2p-tor", "tor-nym", "i2p-nym", "none",
+];
 const KIND: &[&str] = &["appvm", "disposable", "template"];
 const PANIC: &[&str] = &["keep", "lock", "wipe"];
 const COLORS: &[&str] = &[
     "red", "orange", "yellow", "green", "blue", "purple", "black", "gray",
 ];
-const HELP: &str = "s start  v usb  h host-net  b sflc-boot  |  a add  d del  r rename  c color  t type  n net  i hide  u unlock  o iso  f file  Space panic  p ARM  w save  q";
+const HELP: &str = "s start  e term  v usb  h host-net  b sflc-boot  |  a add  d del  r rename  c color  t type  n net  i hide  u unlock  o iso  f file  Space panic  p ARM  w save  q";
 
 #[derive(Clone)]
 enum Mode {
@@ -591,6 +593,26 @@ impl App {
         }
     }
 
+    fn run_term(&mut self) {
+        let Some(zone) = self.sel().map(str::to_string) else {
+            self.status = "term: select a zone first".into();
+            return;
+        };
+        // Qubes-like: open a new terminal into the zone (don't take over the TUI).
+        let try_spawn = |bin: &str, args: &[&str]| -> bool {
+            Command::new(bin).args(args).spawn().is_ok()
+        };
+        let ok = try_spawn("kgx", &["-e", "bunker-term", &zone])
+            || try_spawn("gnome-terminal", &["--", "bunker-term", &zone])
+            || try_spawn("xterm", &["-e", "bunker-term", &zone])
+            || try_spawn("bunker-term", &[&zone]);
+        self.status = if ok {
+            format!("term → {zone}")
+        } else {
+            format!("term: install kgx/gnome-terminal, or: bunker-term {zone}")
+        };
+    }
+
     fn run_start(&mut self) {
         let target = self.input.trim().to_string();
         self.mode = Mode::List;
@@ -650,7 +672,7 @@ impl App {
         let p = std::mem::take(&mut self.input);
         if p.is_empty() {
             self.status = "empty passphrase".into();
-            return;
+        return;
         }
         self.boot_passes.push(p);
         if self.boot_passes.len() >= self.boot_need {
@@ -692,7 +714,7 @@ fn draw(f: &mut Frame, app: &App) {
             );
         }
         Mode::Add => {
-            f.render_widget(
+    f.render_widget(
                 Paragraph::new(format!("New zone name: {}_", app.input)).block(
                     Block::default()
                         .borders(Borders::ALL)
@@ -756,7 +778,7 @@ fn draw(f: &mut Frame, app: &App) {
         }
         Mode::UnlockPass => {
             let stars = "*".repeat(app.input.len());
-            f.render_widget(
+    f.render_widget(
                 Paragraph::new(format!("Layer passphrase: {stars}_")).block(
                     Block::default()
                         .borders(Borders::ALL)
@@ -766,7 +788,7 @@ fn draw(f: &mut Frame, app: &App) {
             );
         }
         Mode::Start => {
-            f.render_widget(
+        f.render_widget(
                 Paragraph::new(format!(
                     "START broker or zone (netVM/usbVM = 1→many)\n\
                      type:  net  |  usb  |  all  |  <zone>\n\
@@ -792,7 +814,7 @@ fn draw(f: &mut Frame, app: &App) {
             );
         }
         Mode::HostNet => {
-            f.render_widget(
+    f.render_widget(
                 Paragraph::new(
                     "HOST CLEARNET (updates only — keep locked for daily use)\n\n\
                      a = allow WAN   (nixos-rebuild)\n\
@@ -807,7 +829,7 @@ fn draw(f: &mut Frame, app: &App) {
         Mode::BootstrapPass => {
             let n = app.boot_passes.len() + 1;
             let stars = "*".repeat(app.input.len());
-            f.render_widget(
+    f.render_widget(
                 Paragraph::new(format!(
                     "Shufflecake FIRST-TIME bootstrap\n\
                      Passphrase for layer {n} of {}\n\
@@ -819,18 +841,18 @@ fn draw(f: &mut Frame, app: &App) {
             );
         }
         Mode::List => {
-            let items: Vec<ListItem> = app
+    let items: Vec<ListItem> = app
                 .names
-                .iter()
+        .iter()
                 .map(|n| {
                     let z = &app.zones[n];
-                    let iso = z.get("template").and_then(|x| x.as_str()) == Some("iso")
-                        || z
-                            .get("iso")
-                            .and_then(|x| x.as_str())
+            let iso = z.get("template").and_then(|x| x.as_str()) == Some("iso")
+                || z
+                    .get("iso")
+                    .and_then(|x| x.as_str())
                             .is_some_and(|s| !s.is_empty());
                     ListItem::new(format!(
-                        "{n:<12} {kind:<11} {color:<7} net={net:<4} hide={hide} panic={panic}{iso}",
+                        "{n:<12} {kind:<11} {color:<7} net={net:<7} hide={hide} panic={panic}{iso}",
                         kind = kind_of(z),
                         color = z.get("color").and_then(|x| x.as_str()).unwrap_or("gray"),
                         net = z.get("internet").and_then(|x| x.as_str()).unwrap_or("nym"),
@@ -838,8 +860,8 @@ fn draw(f: &mut Frame, app: &App) {
                         panic = panic_of(z),
                         iso = if iso { " [ISO]" } else { "" },
                     ))
-                })
-                .collect();
+        })
+        .collect();
             let mut st = app.list.clone();
             f.render_stateful_widget(
                 List::new(items)
@@ -848,10 +870,10 @@ fn draw(f: &mut Frame, app: &App) {
                             .borders(Borders::ALL)
                             .title("bunker · zones  (? help)"),
                     )
-                    .highlight_style(
-                        Style::default()
+        .highlight_style(
+            Style::default()
                             .fg(Color::Cyan)
-                            .add_modifier(Modifier::BOLD),
+                .add_modifier(Modifier::BOLD),
                     ),
                 c[0],
                 &mut st,
@@ -993,6 +1015,7 @@ fn run(term: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> io::Resu
                     app.input = app.sel().unwrap_or("net").to_string();
                     app.status = "start net | usb | all | zone".into();
                 }
+                KeyCode::Char('e') => app.run_term(),
                 KeyCode::Char('v') => {
                     if app.sel().is_none() {
                         app.status = "select a zone, then v for USB".into();
