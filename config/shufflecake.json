@@ -1,6 +1,7 @@
 {
-  "device": "",
+  "device": "/var/lib/bunker/sflc.img",
+  "image_gb": 32,
   "mount_root": "/mnt/bunker-sflc",
   "max_layers": 3,
-  "mode": "auto"
+  "mode": "shufflecake"
 }

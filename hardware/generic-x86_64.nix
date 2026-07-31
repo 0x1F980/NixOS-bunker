@@ -1,10 +1,9 @@
-# Portable x86_64 overlay — auto-imported for host / host builds on x86_64.
+# Portable x86_64 overlay — Intel or AMD KVM (not Xen).
 { lib, ... }:
 
 {
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.enableRedistributableFirmware = true;
-  # Load whichever matches the CPU; the other is a no-op.
   boot.kernelModules = [
     "kvm-intel"
     "kvm-amd"

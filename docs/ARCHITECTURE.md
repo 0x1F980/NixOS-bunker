@@ -1,8 +1,8 @@
 # NixOS-bunker — architecture
 
 **Repo:** https://github.com/0x1F980/NixOS-bunker  
-**Stack:** NixOS 26.05 · microvm.nix · KVM · x86_64 only  
-**Idea:** Qubes-like compartmentalization, **not** Qubes OS (no Xen, no Qubes Manager).
+**Stack:** NixOS 26.05 · microvm.nix · **KVM** · **x86_64 / aarch64 / riscv64**  
+**Idea:** Qubes-like compartmentalization, **not** Qubes OS (no Xen — Xen is hardware-narrow).
 
 **Code size (nix + sh + rs):** **~2371 LOC**.
 
@@ -14,12 +14,31 @@ A thin GNOME host runs **one operator TUI** (`bunker`). Daily apps run in **micr
 
 ---
 
+## 1b. Security model (Qubes philosophy)
+
+Assume correct use. No fluff.
+
+| Rule | Mechanism |
+| --- | --- |
+| Host is not a browsing/egress domain | `bunker-host-net` — OUTPUT drop except lo + `10.0.0.0/24` |
+| Temporary host WAN only for updates | `bunker-host-net allow` → rebuild → `lock` |
+| App guests never clearnet-direct | `bunker-killswitch` ON at boot (only `vm-net` may WAN) |
+| No daily apps on host | thin GNOME + disk/analyse tools; no mat2 on host |
+| Clipboard mediated | `bunker-clip` |
+| File copy mediated | `bunker-file` / TUI `f` (host staging + shred) |
+| Invisible storage | **real Shufflecake** (`bunker-sflc bootstrap\|unlock`) |
+| USB mediated | usbVM + usbip |
+
+Host DNS default: `10.0.0.1` (netVM). Compromise of one zone ≠ host browsing stack.
+
+---
+
 ## 2. Diagram
 
 ```
-┌────────────────────────── HOST (thin GNOME) ──────────────────────────┐
-│  bunker (ratatui) · farvede launchers · disk/analyse tools (no mat2) │
-│  br-bunker 10.0.0.254/24                                              │
+┌──────── HOST (clearnet LOCKED — lo + bunker LAN only) ────────────────┐
+│  bunker (ratatui) · colored launchers · disk tools (no mat2)         │
+│  br-bunker 10.0.0.254/24 · bunker-host-net · killswitch ON           │
 │                                                                        │
 │  Brokers: netVM .1 (nym/i2p/tor SOCKS 1→many) · usbVM .2 (1→many)    │
 │  Zones: appvm|disposable|template · optional ISO · invisible · panic   │
@@ -29,7 +48,10 @@ A thin GNOME host runs **one operator TUI** (`bunker`). Daily apps run in **micr
 ### TUI keys (full CRUD)
 `a` add · `d` del · `r` rename · `c` color · `t` type · `n` net · `i` hide · `o` iso · Space panic · `p` ARM · `w` save
 
-Color = host icon + zone terminal. After color/rename: rebuild for GNOME icons.
+**Color (`c` in TUI / `color=` in CRUD):**
+- Host GNOME launcher SVG (rebuild after change)
+- `bunker-term <zone>` — OSC bg/fg + PS1 from live `zones.json`
+- In-guest login shell PS1/OSC — baked at zone build (`mk-app-zone`); rebuild zone after color change
 
 ---
 
@@ -45,7 +67,9 @@ Color = host icon + zone terminal. After color/rename: rebuild for GNOME icons.
 | Disposable | DisposableVM | `kind=disposable` + `bunker-wipe` |
 | Template | TemplateVM | `templates/*.nix` package sets |
 | Policy UI | Qubes Manager | **`bunker` ratatui** + launchers |
-| Hypervisor | Xen | **KVM only** |
+| Hypervisor | Xen | **KVM** (broad hardware; not Xen) |
+| CPU arches | mostly x86_64 | **x86_64 · aarch64 · riscv64** (same flake) |
+| ISO / HVM | HVM | **QEMU ISO zones** (native KVM or TCG) |
 | OS glue | Fedora/etc. | **NixOS flake** (reproducible) |
 
 Same **security idea** (compromise one zone ≠ whole machine). Different **implementation** and UX.
@@ -59,13 +83,16 @@ Same **security idea** (compromise one zone ≠ whole machine). Different **impl
 | `config/zones.json` | Zones: apps, mem, diskGb, kind, color, internet, usb, invisible, layer, panic |
 | `config/zones.nix` | `builtins.fromJSON` of that file |
 | `config/colors.nix` | Label palette (hex/ansi/bg) |
-| `config/shufflecake.json` | Invisible layers (`device`, `mount_root`, `mode`) — empty `device` = stub mode |
+| `config/shufflecake.json` | Shufflecake image/device, `image_gb`, `max_layers` |
 | `templates/*.nix` | Package sets: desktop, browser, dev, radio |
-| `flake.nix` | Builds `.#host` + `.#zone-<name>` |
+| `flake.nix` | `.#host-<arch>-linux` + `.#zone-<name>` (per system) |
+| `hardware/` | KVM overlays: x86_64 / aarch64 / riscv64 |
+| `modules/iso-qemu.nix` | Host QEMU + `/etc/bunker/qemu.env` for ISO |
 
 After editing `zones.json`:  
-`sudo nixos-rebuild switch --flake .#host`  
-then `bunker-zone-start <zone>`.
+`sudo nixos-rebuild switch --flake .#host-<arch>-linux`  
+(`host-x86_64-linux` / `host-aarch64-linux` / `host-riscv64-linux`; alias `.#host` = x86_64)  
+then `bunker-zone-start <zone>` (ISO zones use arch-aware `iso-run.sh`).
 
 ---
 
@@ -96,7 +123,7 @@ Built by `modules/guests/mk-app-zone.nix` + template import.
 | `internet` | `tor` \| `none` |
 | `usb[]` | Default VID:PID list auto-attached on start |
 | `color` | Host icon + shell tint |
-| `invisible` + unique `layer` + `hideHash` | Hidden until `bunker-sflc unlock-zone <name>` (or TUI `u`) |
+| `invisible` + `layer` | Hidden until `bunker-sflc unlock <layer>` |
 | `panic` | `keep` \| `lock` \| `wipe` |
 
 Invisible zones are omitted from static GNOME launchers; after unlock, desktop files appear under `/run/bunker/xdg`.
@@ -109,9 +136,7 @@ Rust/ratatui — one screen for non-experts:
 | --- | --- |
 | `↑↓` / `j` `k` | Select zone |
 | `n` | Cycle internet `tor` ↔ `none` |
-| `i` | Toggle invisible (unique free layer + passphrase → `hideHash`) |
-| `u` / `l` | Unlock / lock **this** hidden zone only |
-| `a` / `r` / `d` / `c` | Add / rename / delete / cycle color |
+| `i` | Toggle invisible (sets `layer=1`) |
 | `Space` | Cycle panic `keep` → `lock` → `wipe` |
 | `p` | Arm panic (type code, Enter) |
 | `w` | Save `zones.json` |
@@ -123,29 +148,33 @@ CLI still exists for CRUD: `bunker-zone list|add|set|rm|apps|usb|…`.
 
 - `bunker-panic`: checks `PANIC_HASH` → shreds zones with `panic=wipe` → `bunker-sflc lock all` → best-effort RAM wipe.
 - `keep` / `lock`: not wiped; lock path mainly hits invisible layers via global lock.
-- Per-zone hide: each invisible zone has its own layer + passphrase (`hideHash`).
-- Shufflecake: research-grade; without `device` in `shufflecake.json`, unlock uses a **stub** layer dir (honest deniability limits — see `docs/deniable.md`).
+- Shufflecake: real `dm_sflc` — `bunker-sflc bootstrap` once, then unlock (see `docs/deniable.md`).
 
-### 5.6 Clipboard
+### 5.6 Clipboard & file copy
 
-Mediated only: `bunker-clip send|copy|clear`. No guest→host path. Zone clipboard TTL clear (default 30s).
+- Clipboard: `bunker-clip send|copy|clear` (TTL clear).
+- Files: `bunker-file copy|put|get` or TUI `f` — host staging under `/var/lib/bunker/file-xfer`, shredded after.
 
 ---
 
 ## 6. Operator cheat sheet
 
 ```bash
-sudo nixos-rebuild switch --flake .#host
+# Updates (host WAN temporarily open; lock again after)
+sudo bunker-host-net allow
+sudo nixos-rebuild switch --flake .#host-x86_64-linux   # or aarch64 / riscv64
+sudo bunker-host-net lock
+
 bunker                          # TUI
 bunker-zone-start net
 bunker-zone-start personal
-bunker-term personal
+bunker-term personal            # color from zones.json
 bunker-usb-attach radio 0bda:2838
 bunker-clip send personal
-bunker-sflc unlock-zone secret  # passphrase on stdin (this zone only)
-bunker-sflc unlock 1              # legacy: whole layer
+bunker-sflc unlock 1            # passphrase on stdin
 bunker-panic                    # or TUI → p
-bunker-killswitch enable
+bunker-host-net status
+bunker-killswitch status        # ON by default at boot
 bunker-wipe browse
 bunker-test-isolation
 ```
@@ -215,24 +244,26 @@ Largest intentional chunks: **TUI (UX)**, **usb guest**, **zone CRUD**, **sflc**
 
 ## 8. What was deliberately removed
 
-voiceVM · vault guest · ISO/HVM QEMU · i2p · nym-client · metadata system flag · multi-arch · four old TUIs · fat templates · zone cursors.
+voiceVM · vault guest · metadata system flag · four old TUIs · fat templates · zone cursors · Xen.
 
-Kept for “dumb user” UX: **ratatui `bunker`** + colored GNOME launchers.
+**Kept / required:** multi-arch KVM · ISO/HVM QEMU · nym/i2p/tor · ratatui `bunker` · colored launchers.
 
 ---
 
 ## 9. Honest limits
 
-- Stronger than a flat desktop; **not** a Qubes clone or Xen TCB story.
-- Tor egress is simple and maintainable; not a full mixnet stack.
-- Invisible/Shufflecake needs a real `device` or it is stub.
+- Not Xen/Qubes TCB; KVM + nftables + thin host. Correct use assumed.
+- Host lock is OUTPUT filter — operator can still `allow` for updates; don't leave it open.
+- Shufflecake needs `bootstrap` once; Secure Boot may block unsigned `dm_sflc`.
 - Panic RAM wipe is userspace best-effort.
-- This agent environment may lack `nix`/KVM — full proof = rebuild on the bunker machine.
+- **riscv64 / some aarch64 boards:** flake targets exist; individual nixpkgs attrs (GNOME, nym, …) may lag — fix on that board, don't drop the arch.
+- Live proof = rebuild on real hardware per arch.
 
 ---
 
 ## 10. Related docs
 
+- `docs/PLAN.md` — locked plan / checklist  
 - `docs/MANUAL.txt` / `man bunker` — commands  
 - `docs/deniable.md` — invisible + panic  
 - `docs/egress.md` — Tor  

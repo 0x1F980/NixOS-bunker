@@ -1,40 +1,34 @@
-# Invisible zones (Shufflecake)
+# Invisible zones (real Shufflecake)
 
-Hidden units are **whole zones** (VMs), not files or apps.
+Hidden units are **whole zones** (VMs). Storage is **Shufflecake** (`dm_sflc`), not a stub dir.
 
-## Model
-
-| Kind | Where | GNOME |
-| --- | --- | --- |
-| Normal zone | `zones.json` `invisible=false` | Always shown |
-| Invisible zone | `zones.json` `invisible=true` + unique `layer` + optional `hideHash` | Only after that zone is unlocked |
-
-Fields:
-
-```json
-"invisible": true,
-"layer": 2,
-"hideHash": "<sha256 of this zone's passphrase>",
-"panic": "wipe"
-```
-
-Each invisible zone gets its **own layer** and **own passphrase** (set in the TUI with `i`). Unlocking one zone does **not** unlock the others — plausible deniability stays per zone.
-
-`panic`: `keep` | `lock` | `wipe` (per zone).
-
-Unlock: `bunker` TUI (`i` hide → passphrase, then `u` unlock / `l` lock) or CLI:
+## Setup (once)
 
 ```bash
-bunker-sflc unlock-zone secret   # passphrase on stdin
-bunker-sflc lock-zone secret
+# Default image: /var/lib/bunker/sflc.img (32G sparse) — or set block device in config/shufflecake.json
+sudo bunker-sflc bootstrap          # interactive passphrases for layers 1..N
+# or: printf 'p1\np2\np3\n' | sudo bunker-sflc bootstrap
 ```
 
-Legacy layer unlock (`bunker-sflc unlock <n>`) still works and reveals every zone on that layer.
+`max_layers` / `image_gb` / `device` live in `config/shufflecake.json` (then rebuild host).
 
-Panic: `bunker` → Panic (`p`), or `bunker-panic`. Wipes zones with `panic=wipe`, locks layers, best-effort RAM wipe.
+## Daily
+
+| Action | Command / TUI |
+| --- | --- |
+| Hide zone | TUI `i` → `invisible` + `layer` · `w` save · rebuild |
+| Unlock | TUI `u` or `echo pass \| sudo bunker-sflc unlock <layer>` |
+| Lock | `sudo bunker-sflc lock all` |
+| Status | `bunker-sflc status` |
+
+Unlocking layer **L** opens Shufflecake volumes **0..L-1** (lesser secrecy included), mounts them under `/mnt/bunker-sflc/layer*`, and symlinks invisible zone disks there.
+
+## Panic
+
+`bunker` → `p`, or `bunker-panic`: wipe `panic=wipe` zones → `bunker-sflc lock all` → best-effort RAM wipe.
 
 ## Honesty
 
-- Shufflecake in nixpkgs is research-grade.
-- Software presence on disk is **not** deniable.
-- Userspace RAM wipe is not a cold-boot guarantee.
+- Shufflecake is research-grade; presence of the *tool* on disk is not deniable.
+- Secure Boot may block unsigned `dm_sflc` — disable SB or sign the module.
+- Always unlock your highest daily layer when writing (corruption risk on unopened higher layers).

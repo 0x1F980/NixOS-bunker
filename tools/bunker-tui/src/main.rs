@@ -14,9 +14,9 @@ use ratatui::{
 use serde_json::{json, Map, Value};
 use std::{
     env, fs,
-    io::{self, Stdout, Write},
+    io::{self, Stdout},
     path::PathBuf,
-    process::{Command, Stdio},
+    process::Command,
 };
 
 const NET: &[&str] = &["nym", "i2p", "tor", "none"];
@@ -26,7 +26,7 @@ const COLORS: &[&str] = &[
     "red", "orange", "yellow", "green", "blue", "purple", "black", "gray",
 ];
 const HELP: &str =
-    "a add  d del  r rename  c color  t type  n net  i hide  u unlock  l lock  o iso  Space panic  p ARM  w save  q";
+    "a add  d del  r rename  c color  t type  n net  i hide  u unlock  o iso  f file  Space panic  p ARM  w save  q quit";
 
 #[derive(Clone)]
 enum Mode {
@@ -36,7 +36,8 @@ enum Mode {
     Rename,
     Iso,
     Delete,
-    HidePass,
+    FileCopy,
+    UnlockLayer,
     UnlockPass,
 }
 
@@ -49,6 +50,7 @@ struct App {
     dirty: bool,
     mode: Mode,
     input: String,
+    unlock_layer: String,
 }
 
 fn flag(z: &Value, k: &str) -> bool {
@@ -77,27 +79,6 @@ fn panic_of(z: &Value) -> &str {
         .unwrap_or("keep")
 }
 
-fn sha256_hex(s: &str) -> String {
-    let out = Command::new("sha256sum")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .and_then(|mut c| {
-            if let Some(mut stdin) = c.stdin.take() {
-                stdin.write_all(s.as_bytes())?;
-            }
-            c.wait_with_output()
-        });
-    out.ok()
-        .and_then(|o| {
-            String::from_utf8_lossy(&o.stdout)
-                .split_whitespace()
-                .next()
-                .map(|x| x.to_string())
-        })
-        .unwrap_or_default()
-}
-
 fn valid_name(s: &str) -> bool {
     !s.is_empty()
         && s.chars()
@@ -121,6 +102,7 @@ impl App {
             dirty: false,
             mode: Mode::List,
             input: String::new(),
+            unlock_layer: String::new(),
         };
         app.refresh_names();
         Ok(app)
@@ -186,22 +168,7 @@ impl App {
         )
     }
 
-    fn next_free_layer(&self) -> u64 {
-        let used: Vec<u64> = self
-            .zones
-            .values()
-            .filter_map(|z| {
-                if flag(z, "invisible") {
-                    z.get("layer").and_then(|v| v.as_u64())
-                } else {
-                    None
-                }
-            })
-            .collect();
-        (1u64..64).find(|n| !used.contains(n)).unwrap_or(1)
-    }
-
-        fn cycle(&mut self, key: &str, modes: &[&str]) {
+    fn cycle(&mut self, key: &str, modes: &[&str]) {
         let Some(n) = self.sel().map(str::to_string) else {
             return;
         };
@@ -249,105 +216,15 @@ impl App {
             return;
         };
         let on = !flag(&self.zones[&n], "invisible");
-        if on {
-            let layer = self.next_free_layer();
-            let z = self.zones.entry(n.clone()).or_insert(json!({}));
-            let o = z.as_object_mut().unwrap();
-            o.insert("invisible".into(), json!(true));
-            o.insert("layer".into(), json!(layer));
-            self.dirty = true;
-            self.mode = Mode::HidePass;
-            self.input.clear();
-            self.status = format!("{n}: hide ON unique layer={layer} — set passphrase");
-        } else {
-            let z = self.zones.entry(n.clone()).or_insert(json!({}));
-            let o = z.as_object_mut().unwrap();
-            o.insert("invisible".into(), json!(false));
-            o.insert("layer".into(), Value::Null);
-            o.remove("hideHash");
-            self.dirty = true;
-            self.status = format!("{n}: hide OFF");
-        }
-    }
-
-    fn set_hide_pass(&mut self, pass: &str) {
-        let Some(n) = self.sel().map(str::to_string) else {
-            return;
-        };
-        if pass.is_empty() {
-            self.status = "empty passphrase skipped — press u later".into();
-            return;
-        }
-        let hash = sha256_hex(pass);
-        if let Some(z) = self.zones.get_mut(&n) {
-            if let Some(o) = z.as_object_mut() {
-                o.insert("hideHash".into(), json!(hash));
-                self.dirty = true;
-                self.status = format!("{n}: unique hide passphrase set");
-            }
-        }
-    }
-
-    fn unlock_zone(&mut self, pass: &str) {
-        let Some(n) = self.sel().map(str::to_string) else {
-            return;
-        };
-        let Some(z) = self.zones.get(&n) else {
-            return;
-        };
-        if !flag(z, "invisible") {
-            self.status = "not hidden".into();
-            return;
-        }
-        if let Some(h) = z.get("hideHash").and_then(|v| v.as_str()) {
-            if !h.is_empty() && sha256_hex(pass) != h {
-                self.status = "denied (wrong passphrase for this zone)".into();
-                return;
-            }
-        }
-        match Command::new("bunker-sflc")
-            .args(["unlock-zone", &n])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-        {
-            Ok(mut c) => {
-                if let Some(mut stdin) = c.stdin.take() {
-                    let _ = writeln!(stdin, "{pass}");
-                }
-                match c.wait_with_output() {
-                    Ok(o) if o.status.success() => {
-                        self.status = format!("{n}: unlocked (only this zone)")
-                    }
-                    Ok(o) => {
-                        self.status = format!(
-                            "unlock fail: {}",
-                            String::from_utf8_lossy(&o.stderr).trim()
-                        )
-                    }
-                    Err(e) => self.status = format!("unlock: {e}"),
-                }
-            }
-            Err(e) => self.status = format!("bunker-sflc: {e}"),
-        }
-    }
-
-    fn lock_zone(&mut self) {
-        let Some(n) = self.sel().map(str::to_string) else {
-            return;
-        };
-        if !flag(&self.zones[&n], "invisible") {
-            self.status = "not hidden".into();
-            return;
-        }
-        match Command::new("bunker-sflc").args(["lock-zone", &n]).output() {
-            Ok(o) if o.status.success() => self.status = format!("{n}: locked"),
-            Ok(o) => {
-                self.status = format!("lock: {}", String::from_utf8_lossy(&o.stderr).trim())
-            }
-            Err(e) => self.status = format!("lock: {e}"),
-        }
+        let z = self.zones.entry(n.clone()).or_insert(json!({}));
+        let o = z.as_object_mut().unwrap();
+        o.insert("invisible".into(), json!(on));
+        o.insert("layer".into(), if on { json!(1) } else { Value::Null });
+        self.dirty = true;
+        self.status = format!(
+            "{n}: hidden → {}",
+            if on { "yes (unlock: bunker-sflc)" } else { "no" }
+        );
     }
 
     fn add_zone(&mut self, name: String) {
@@ -460,6 +337,70 @@ impl App {
             Err(e) => self.status = format!("panic: {e}"),
         }
     }
+
+    fn run_file_copy(&mut self) {
+        let line = std::mem::take(&mut self.input);
+        self.mode = Mode::List;
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() != 2 || !parts[0].contains(':') || !parts[1].contains(':') {
+            self.status = "file: use srcZone:/path dstZone:/path".into();
+            return;
+        }
+        match Command::new("bunker-file")
+            .args(["copy", parts[0], parts[1]])
+            .output()
+        {
+            Ok(o) if o.status.success() => {
+                self.status = format!("OK file {}", String::from_utf8_lossy(&o.stdout).trim())
+            }
+            Ok(o) => {
+                self.status = format!(
+                    "file: {}",
+                    String::from_utf8_lossy(&o.stderr)
+                        .trim()
+                        .chars()
+                        .take(120)
+                        .collect::<String>()
+                )
+            }
+            Err(e) => self.status = format!("file: {e}"),
+        }
+    }
+
+    fn run_unlock(&mut self, layer: String) {
+        let pass = std::mem::take(&mut self.input);
+        self.mode = Mode::List;
+        match Command::new("bunker-sflc")
+            .args(["unlock", &layer])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .and_then(|mut c| {
+                use std::io::Write;
+                if let Some(mut stdin) = c.stdin.take() {
+                    writeln!(stdin, "{pass}")?;
+                }
+                c.wait_with_output()
+            }) {
+            Ok(o) if o.status.success() => {
+                self.status = format!("unlocked L{layer}");
+            }
+            Ok(o) => {
+                let err = String::from_utf8_lossy(&o.stderr);
+                let out = String::from_utf8_lossy(&o.stdout);
+                self.status = format!(
+                    "unlock: {}",
+                    err.trim()
+                        .chars()
+                        .chain(out.trim().chars())
+                        .take(120)
+                        .collect::<String>()
+                );
+            }
+            Err(e) => self.status = format!("unlock: {e}"),
+        }
+    }
 }
 
 fn draw(f: &mut Frame, app: &App) {
@@ -519,25 +460,34 @@ fn draw(f: &mut Frame, app: &App) {
                 c[0],
             );
         }
-        Mode::HidePass => {
-            let cur = app.sel().unwrap_or("?");
+        Mode::FileCopy => {
             f.render_widget(
                 Paragraph::new(format!(
-                    "Hide passphrase for '{cur}' (UNIQUE per zone): {}*",
-                    "*".repeat(app.input.len())
+                    "copy srcZone:/path dstZone:/path\n{}_",
+                    app.input
                 ))
-                .block(Block::default().borders(Borders::ALL).title("HIDE passphrase")),
+                .block(Block::default().borders(Borders::ALL).title("FILE COPY")),
+                c[0],
+            );
+        }
+        Mode::UnlockLayer => {
+            f.render_widget(
+                Paragraph::new(format!("Unlock Shufflecake layer #: {}_", app.input)).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("SFLC UNLOCK"),
+                ),
                 c[0],
             );
         }
         Mode::UnlockPass => {
-            let cur = app.sel().unwrap_or("?");
+            let stars = "*".repeat(app.input.len());
             f.render_widget(
-                Paragraph::new(format!(
-                    "Unlock ONLY '{cur}': {}*",
-                    "*".repeat(app.input.len())
-                ))
-                .block(Block::default().borders(Borders::ALL).title("UNLOCK zone")),
+                Paragraph::new(format!("Layer passphrase: {stars}_")).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("SFLC PASSPHRASE"),
+                ),
                 c[0],
             );
         }
@@ -552,17 +502,12 @@ fn draw(f: &mut Frame, app: &App) {
                             .get("iso")
                             .and_then(|x| x.as_str())
                             .is_some_and(|s| !s.is_empty());
-                    let layer = z.get("layer").and_then(|v| v.as_u64());
-                    let hide = if flag(z, "invisible") {
-                        format!("L{}", layer.unwrap_or(0))
-                    } else {
-                        "-".into()
-                    };
                     ListItem::new(format!(
-                        "{n:<12} {kind:<11} {color:<7} net={net:<4} hide={hide:<3} panic={panic}{iso}",
+                        "{n:<12} {kind:<11} {color:<7} net={net:<4} hide={hide} panic={panic}{iso}",
                         kind = kind_of(z),
                         color = z.get("color").and_then(|x| x.as_str()).unwrap_or("gray"),
                         net = z.get("internet").and_then(|x| x.as_str()).unwrap_or("nym"),
+                        hide = if flag(z, "invisible") { "yes" } else { "-" },
                         panic = panic_of(z),
                         iso = if iso { " [ISO]" } else { "" },
                     ))
@@ -654,27 +599,6 @@ fn run(term: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> io::Resu
                 KeyCode::Char(' ') => app.cycle("panic", PANIC),
                 KeyCode::Char('c') => app.cycle_color(),
                 KeyCode::Char('i') => app.toggle_invisible(),
-                KeyCode::Char('u') => {
-                    if let Some(n) = app.sel().map(str::to_string) {
-                        if flag(&app.zones[&n], "invisible") {
-                            let has = app.zones[&n]
-                                .get("hideHash")
-                                .and_then(|v| v.as_str())
-                                .is_some_and(|s| !s.is_empty());
-                            app.input.clear();
-                            if has {
-                                app.mode = Mode::UnlockPass;
-                                app.status = "passphrase for THIS zone only".into();
-                            } else {
-                                app.mode = Mode::HidePass;
-                                app.status = "set unique hide passphrase first".into();
-                            }
-                        } else {
-                            app.status = "select a hidden zone (or press i)".into();
-                        }
-                    }
-                }
-                KeyCode::Char('l') => app.lock_zone(),
                 KeyCode::Char('a') => {
                     app.mode = Mode::Add;
                     app.input.clear();
@@ -709,6 +633,16 @@ fn run(term: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> io::Resu
                     app.mode = Mode::Panic;
                     app.input.clear();
                     app.status = "type panic passphrase, Enter".into();
+                }
+                KeyCode::Char('f') => {
+                    app.mode = Mode::FileCopy;
+                    app.input.clear();
+                    app.status = "file copy: srcZone:/path dstZone:/path".into();
+                }
+                KeyCode::Char('u') => {
+                    app.mode = Mode::UnlockLayer;
+                    app.input.clear();
+                    app.status = "sflc unlock: layer number".into();
                 }
                 _ => {}
             },
@@ -790,17 +724,37 @@ fn run(term: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> io::Resu
                 }
                 _ => {}
             },
-            Mode::HidePass => match k.code {
+            Mode::FileCopy => match k.code {
+                KeyCode::Esc => {
+                    app.mode = Mode::List;
+                    app.input.clear();
+                    app.status = HELP.into();
+                }
+                KeyCode::Enter => app.run_file_copy(),
+                KeyCode::Backspace => {
+                    app.input.pop();
+                }
+                KeyCode::Char(ch) => app.input.push(ch),
+                _ => {}
+            },
+            Mode::UnlockLayer => match k.code {
                 KeyCode::Esc => {
                     app.mode = Mode::List;
                     app.input.clear();
                     app.status = HELP.into();
                 }
                 KeyCode::Enter => {
-                    let pass = app.input.clone();
-                    app.mode = Mode::List;
-                    app.input.clear();
-                    app.set_hide_pass(&pass);
+                    let layer = app.input.trim().to_string();
+                    if layer.parse::<u32>().is_ok() {
+                        app.unlock_layer = layer;
+                        app.mode = Mode::UnlockPass;
+                        app.input.clear();
+                        app.status = "type layer passphrase, Enter".into();
+                    } else {
+                        app.status = "layer must be integer".into();
+                        app.mode = Mode::List;
+                        app.input.clear();
+                    }
                 }
                 KeyCode::Backspace => {
                     app.input.pop();
@@ -815,10 +769,8 @@ fn run(term: &mut Terminal<CrosstermBackend<Stdout>>, app: &mut App) -> io::Resu
                     app.status = HELP.into();
                 }
                 KeyCode::Enter => {
-                    let pass = app.input.clone();
-                    app.mode = Mode::List;
-                    app.input.clear();
-                    app.unlock_zone(&pass);
+                    let layer = std::mem::take(&mut app.unlock_layer);
+                    app.run_unlock(layer);
                 }
                 KeyCode::Backspace => {
                     app.input.pop();

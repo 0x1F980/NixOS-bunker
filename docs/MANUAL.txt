@@ -3,21 +3,31 @@ NixOS-bunker — host operator manual
 
 MODEL
   Zone = VM. kind = appvm|disposable|template
-  color = host icon + zone terminal. internet = nym|i2p|tor|none
+  color = host icon + bunker-term + guest PS1. internet = nym|i2p|tor|none
   invisible+layer. panic = keep|lock|wipe. ISO = template=iso + iso=/path
   Brokers: net (1→many) usb (1→many). UI: bunker (ratatui)
+  Host clearnet LOCKED (Qubes-like). Guest killswitch ON. Clipboard mediated.
 
 COMMANDS
   bunker
     a add · d del · r rename · c color · t type · n net · i hide
-    o iso path · Space panic · p ARM · w save · q quit
+    u unlock sflc · o iso · f file copy · Space panic · p ARM · w save · q quit
   bunker-zone …                 # same CRUD via CLI
   bunker-zone-start <zone|all>
-  bunker-sflc unlock-zone / unlock|lock <layer>
+  bunker-host-net allow|lock|status   # host WAN for updates only
+  bunker-killswitch status            # ON at boot
+  bunker-sflc bootstrap|unlock|lock   # real Shufflecake (once: bootstrap)
+  bunker-file copy a:/path b:/path    # full file copy (also TUI f)
   bunker-panic / bunker-term / bunker-usb-* / bunker-clip / bunker-wipe
 
-SoT: config/zones.json  then  nixos-rebuild switch --flake .#host
+SoT: config/zones.json
+Rebuild (YOUR arch):
+  nixos-rebuild switch --flake .#host-x86_64-linux
+  nixos-rebuild switch --flake .#host-aarch64-linux
+  nixos-rebuild switch --flake .#host-riscv64-linux
+Updates: bunker-host-net allow → rebuild → bunker-host-net lock
+ISO: TUI o / iso=  (QEMU; BUNKER_ISO_ARCH= for foreign ISO)
 Host: disk/analyse tools only (no mat2). mat2 lives in browser template.
 
 DOCS
-  docs/ARCHITECTURE.md  docs/deniable.md  docs/egress.md  docs/usb.md
+  docs/PLAN.md  docs/ARCHITECTURE.md  docs/deniable.md  docs/egress.md  docs/usb.md

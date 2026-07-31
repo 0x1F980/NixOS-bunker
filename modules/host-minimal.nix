@@ -15,8 +15,10 @@ let
     bunker-usb-attach = "usb-attach.sh";
     bunker-usb-detach = "usb-detach.sh";
     bunker-clip = "clipboard.sh";
+    bunker-file = "file-copy.sh";
     bunker-test-isolation = "test-isolation.sh";
     bunker-killswitch = "killswitch.sh";
+    bunker-host-net = "bunker-host-net.sh";
     bunker-wipe = "zone-wipe.sh";
     bunker-zone = "bunker-zone.sh";
     bunker-term = "zone-term.sh";
@@ -130,7 +132,6 @@ in
       curl
       jq
       tmux
-      qemu_kvm
       virtiofsd
       pciutils
       usbutils

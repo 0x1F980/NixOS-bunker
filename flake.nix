@@ -1,5 +1,5 @@
 {
-  description = "Hardened NixOS microVM workstation — not Qubes";
+  description = "Hardened NixOS microVM workstation — KVM on any Linux arch";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -16,13 +16,20 @@
     }:
     let
       lib = nixpkgs.lib;
-      system = "x86_64-linux";
+      # Broad hardware: same flake on PC, ARM board, RISC-V (where nixpkgs+KVM allow).
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "riscv64-linux"
+      ];
+      forAllSystems = lib.genAttrs systems;
+
       appZones = import ./config/zones.nix;
       isIsoZone = zone: (zone.template or "") == "iso" || ((zone.iso or "") != "");
       nixosAppZones = lib.filterAttrs (_: z: !(isIsoZone z)) appZones;
 
       mkGuest =
-        name: modules:
+        system: name: modules:
         nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = {
@@ -43,29 +50,31 @@
           ++ modules;
         };
 
-      guests = {
-        net = mkGuest "net" [ ./modules/guests/net.nix ];
-        usb = mkGuest "usb" [ ./modules/guests/usb.nix ];
-      }
-      // lib.mapAttrs (
-        name: zone:
-        mkGuest name [
-          (import ./modules/guests/mk-app-zone.nix {
-            inherit name zone;
-          })
-        ]
-      ) nixosAppZones;
+      mkGuests =
+        system:
+        {
+          net = mkGuest system "net" [ ./modules/guests/net.nix ];
+          usb = mkGuest system "usb" [ ./modules/guests/usb.nix ];
+        }
+        // lib.mapAttrs (
+          name: zone:
+          mkGuest system name [
+            (import ./modules/guests/mk-app-zone.nix {
+              inherit name zone;
+            })
+          ]
+        ) nixosAppZones;
 
-      zonePackages = lib.mapAttrs' (name: guest: {
-        name = "zone-${name}";
-        value = guest.config.microvm.declaredRunner;
-      }) guests;
-    in
-    {
-      inherit appZones;
+      zonePackages =
+        system:
+        lib.mapAttrs' (name: guest: {
+          name = "zone-${name}";
+          value = guest.config.microvm.declaredRunner;
+        }) (mkGuests system);
 
-      nixosConfigurations = {
-        host = nixpkgs.lib.nixosSystem {
+      mkHost =
+        system:
+        nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = {
             inherit self microvm;
@@ -76,7 +85,7 @@
             microvm.nixosModules.host
             ./hosts/bunker/configuration.nix
             ./hosts/bunker/hardware-configuration.nix
-            ./hardware/generic-x86_64.nix
+            ./hardware/default.nix
             (
               { ... }:
               {
@@ -85,19 +94,62 @@
             )
           ];
         };
+
+      # host-x86_64-linux, host-aarch64-linux, host-riscv64-linux
+      hostConfigs = lib.listToAttrs (
+        map (system: {
+          name = "host-${system}";
+          value = mkHost system;
+        }) systems
+      );
+
+      # Guests as nixosConfigurations for the default (native) build machine naming:
+      # also expose unqualified names for x86_64 for backwards compat, plus per-system.
+      guestConfigs = lib.foldl' (
+        acc: system:
+        let
+          gs = mkGuests system;
+          prefixed = lib.mapAttrs' (n: v: {
+            name = "${n}-${system}";
+            value = v;
+          }) gs;
+          # Unprefixed aliases only for x86_64 (legacy `.#net`, `.#personal`)
+          bare = if system == "x86_64-linux" then gs else { };
+        in
+        acc // prefixed // bare
+      ) { } systems;
+    in
+    {
+      inherit appZones systems;
+
+      nixosConfigurations = hostConfigs
+      // {
+        # Convenience: `.#host` → x86_64; other arches: `.#host-aarch64-linux` etc.
+        host = hostConfigs."host-x86_64-linux";
       }
-      // guests;
+      // guestConfigs;
 
-      packages.${system} = zonePackages // {
-        default = (import nixpkgs { inherit system; }).writeText "bunker-readme" ''
-          nixos-rebuild switch --flake .#host
-          bunker
-        '';
-      };
+      packages = forAllSystems (
+        system:
+        (zonePackages system)
+        // {
+          default = (import nixpkgs { inherit system; }).writeText "bunker-readme" ''
+            # Pick YOUR arch (broad hardware — not x86-only):
+            nixos-rebuild switch --flake .#host-x86_64-linux
+            nixos-rebuild switch --flake .#host-aarch64-linux
+            nixos-rebuild switch --flake .#host-riscv64-linux
+            # or legacy: .#host  (== x86_64)
+            bunker
+          '';
+        }
+      );
 
-      apps.${system} = lib.mapAttrs (_: drv: {
-        type = "app";
-        program = "${drv}/bin/microvm-run";
-      }) zonePackages;
+      apps = forAllSystems (
+        system:
+        lib.mapAttrs (_: drv: {
+          type = "app";
+          program = "${drv}/bin/microvm-run";
+        }) (zonePackages system)
+      );
     };
 }

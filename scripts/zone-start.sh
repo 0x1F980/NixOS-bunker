@@ -26,7 +26,7 @@ PY
   if [[ -f /run/bunker/visible-zones.json ]] && python3 -c "import json,sys;sys.exit(0 if sys.argv[1] in json.load(open('/run/bunker/visible-zones.json')) else 1)" "$z"; then
     return 0
   fi
-  echo "ERROR: hidden zone '$z' locked — bunker-sflc unlock-zone $z  (or bunker TUI: u)" >&2; exit 1
+  echo "ERROR: hidden zone '$z' locked — bunker-sflc unlock <layer>" >&2; exit 1
 }
 
 bridge() {

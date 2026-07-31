@@ -5,7 +5,9 @@
   imports = [
     ../../modules/host-minimal.nix
     ../../modules/hardening.nix
+    ../../modules/host-net-lock.nix
     ../../modules/clipboard-oneway.nix
+    ../../modules/iso-qemu.nix
     ../../modules/microvm-network.nix
     ../../modules/zones-registry.nix
     ../../modules/zones-ui.nix

@@ -1,8 +1,8 @@
 # STUB — replace on the target machine:
 #   sudo nixos-generate-config --show-hardware-config > hosts/bunker/hardware-configuration.nix
 #
-# Platform-agnostic stub so both x86_64 and aarch64 hosts can evaluate.
-# Flake sets nixpkgs.hostPlatform via mkHost + hardware/*.nix overlays.
+# Platform-agnostic stub — evaluate on x86_64 / aarch64 / riscv64.
+# Flake: .#host-<system> + hardware/default.nix picks KVM overlay.
 {
   config,
   lib,
@@ -22,7 +22,7 @@
     "virtio_blk"
   ];
   boot.initrd.kernelModules = [ ];
-  # KVM module names come from hardware/generic-x86_64.nix or hardware/aarch64-generic.nix
+  # KVM module names come from hardware/generic-{x86_64,aarch64,riscv64}.nix
   boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
 
