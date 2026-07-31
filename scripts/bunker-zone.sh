@@ -4,7 +4,7 @@
 set -euo pipefail
 # shellcheck source=lib-common.sh
 source "$(dirname "$0")/lib-common.sh"
-ZONES_JSON="$(bunker_zones_json)"
+ZONES_JSON="$(bunker_public_zones_json)"
 ROOT="$(bunker_repo_root)"
 TPL="$ROOT/templates"
 [[ -d "$TPL" ]] || TPL="$HOME/NixOS-bunker/templates"
@@ -85,11 +85,11 @@ k=os.environ["KIND"]
 e={"template":os.environ["TEMPLATE"],"ip":os.environ["IP"],"mac":os.environ["MAC"],
    "socks":int(os.environ["SOCKS"]),"mem":int(os.environ["MEM"]),"vcpu":int(os.environ["VCPU"]),
    "disposable":os.environ["DISP"]=="true" or k=="disposable","kind":k,"color":os.environ["COLOR"],
-   "internet":os.environ["NET"],"usb":[],"apps":[],"invisible":False,"layer":None,"panic":"keep","diskGb":16}
+   "internet":os.environ["NET"],"usb":[],"apps":[],"panic":"keep","diskGb":16}
 iso=os.environ.get("ISO") or ""
 if os.environ["TEMPLATE"]=="iso" or iso:
  e.update(template="iso",iso=iso,boot=os.environ.get("BOOT") or "iso",
-          diskGb=int(os.environ.get("DISKGB") or 16),display="gtk")
+          diskGb=int(os.environ.get("DISKGB") or 16))
 z[n]=e; json.dump(z,open(p,"w"),indent=2); print(json.dumps({n:e},indent=2))
 print("start: bunker-zone-start", n if e.get("template")=="iso" else n)
 print("" if e.get("template")=="iso" else "Next: sudo nixos-rebuild switch --flake .#host")
@@ -108,17 +108,13 @@ for pair in os.environ["ARGS"].split():
   z[n][k]=vl in ("true","1","on"); z[n]["kind"]="disposable" if z[n][k] else "appvm"
  elif k=="kind":
   assert v in ("appvm","disposable","template"); z[n][k]=v; z[n]["disposable"]=v=="disposable"
- elif k in ("template","ip","mac","color","internet","iso","boot","disk","display","panic"):
+ elif k in ("template","ip","mac","color","internet","iso","boot","disk","panic"):
   if k=="panic": assert v in ("keep","lock","wipe")
   if k=="internet": assert v in ("nym","i2p","tor","none")
   z[n][k]=v
   if k=="iso" and v: z[n]["template"]="iso"
- elif k=="layer":
-  z[n][k]=None if vl in ("","null","none") else int(v)
- elif k=="invisible":
-  if vl in ("true","1","on","yes"): z[n][k]=True
-  elif vl in ("false","0","off","no",""): z[n][k]=False
-  else: raise SystemExit("invisible on|off")
+ elif k in ("layer","invisible"):
+  raise SystemExit("hide/invisible: use bunker TUI (u unlock, then i) — not public zones.json")
  else: raise SystemExit(f"bad key {k}")
 json.dump(z,open(p,"w"),indent=2); print(json.dumps({n:z[n]},indent=2))
 PY

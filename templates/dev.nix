@@ -1,4 +1,4 @@
-# Dev — desktop + editor/compiler.
+# Dev — desktop + editor/compiler + Julia (math).
 { pkgs, ... }:
 
 {
@@ -7,5 +7,6 @@
     vscodium
     gcc
     git
+    julia
   ];
 }

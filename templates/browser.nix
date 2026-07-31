@@ -1,13 +1,12 @@
-# Browser disposable — LibreWolf + mat2.
+# Browser disposable — LibreWolf + Tails' Metadata Cleaner (mat2 GUI).
 { pkgs, ... }:
 
 {
   environment.systemPackages = with pkgs; [
     librewolf
     bleachbit
-    mat2
+    metadata-cleaner
     wl-clipboard
-    (writeShellScriptBin "bunker-mat" ''exec ${mat2}/bin/mat2 --inplace "$@"'')
   ];
   systemd.coredump.enable = false;
 }

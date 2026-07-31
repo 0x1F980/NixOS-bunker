@@ -1,20 +1,18 @@
 {
   "personal": {
-    "template": "desktop",
+    "template": "personal",
     "kind": "appvm",
     "ip": "10.0.0.11",
     "mac": "02:b0:00:00:00:11",
     "socks": 1081,
-    "mem": 1536,
-    "diskGb": 20,
+    "mem": 3072,
+    "diskGb": 40,
     "vcpu": 2,
     "disposable": false,
     "color": "green",
     "internet": "tor",
     "usb": [],
     "apps": [],
-    "invisible": false,
-    "layer": null,
     "panic": "keep"
   },
   "work": {
@@ -31,8 +29,6 @@
     "internet": "tor",
     "usb": [],
     "apps": [],
-    "invisible": false,
-    "layer": null,
     "panic": "keep"
   },
   "browse": {
@@ -49,26 +45,22 @@
     "internet": "tor",
     "usb": [],
     "apps": [],
-    "invisible": false,
-    "layer": null,
     "panic": "wipe"
   },
-  "radio": {
-    "template": "radio",
+  "vault": {
+    "template": "vault",
     "kind": "appvm",
-    "ip": "10.0.0.14",
-    "mac": "02:b0:00:00:00:14",
-    "socks": 1084,
-    "mem": 1920,
+    "ip": "10.0.0.15",
+    "mac": "02:b0:00:00:00:15",
+    "socks": null,
+    "mem": 1536,
     "diskGb": 20,
     "vcpu": 2,
     "disposable": false,
-    "color": "orange",
-    "internet": "tor",
-    "usb": ["0bda:2838"],
+    "color": "purple",
+    "internet": "none",
+    "usb": [],
     "apps": [],
-    "invisible": false,
-    "layer": null,
     "panic": "keep"
   }
 }

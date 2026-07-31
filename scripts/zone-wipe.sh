@@ -4,6 +4,8 @@ set -euo pipefail
 # shellcheck source=lib-common.sh
 source "$(dirname "$0")/lib-common.sh"
 ZONE="${1:?zone}"
+RID=$(bunker_zone_runtime_id "$ZONE")
+RID=${RID:-$ZONE}
 if [[ -f /etc/bunker/zones.tsv && ${BUNKER_WIPE_FORCE:-0} != 1 ]]; then
   row=$(awk -F'\t' -v z="$ZONE" '$1==z {print $5}' /etc/bunker/zones.tsv || true)
   if [[ -n $row && $row != disposable ]]; then
@@ -16,7 +18,7 @@ if bunker_zone_is_iso "$ZONE"; then
   rm -rf "${DATA:?}/"*
   echo "$ZONE ISO wiped"; exit 0
 fi
-DATA=${BUNKER_ZONE_DATA:-/var/lib/microvms/$ZONE}
-systemctl stop "microvm@${ZONE}.service" 2>/dev/null || true
+DATA=${BUNKER_ZONE_DATA:-/var/lib/microvms/$RID}
+systemctl stop "microvm@${RID}.service" 2>/dev/null || true
 rm -rf "${DATA:?}/"*
-echo "$ZONE wiped"
+echo "$ZONE wiped (vm=$RID)"

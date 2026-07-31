@@ -49,9 +49,4 @@ in
     bunkerTui
     bunker
   ];
-  environment.etc."bunker/colors.json".text = builtins.toJSON (
-    lib.mapAttrs (_: v: {
-      inherit (v) hex ansi bg;
-    }) colors
-  );
 }

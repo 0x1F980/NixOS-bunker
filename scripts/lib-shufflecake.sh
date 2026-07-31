@@ -3,14 +3,8 @@ bunker_sflc_conf() {
   [[ -f /etc/bunker/shufflecake.json ]] && echo /etc/bunker/shufflecake.json \
     || echo "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/config/shufflecake.json"
 }
-bunker_deniable_json() {
-  [[ -n ${BUNKER_ZONES_JSON:-} && -f $BUNKER_ZONES_JSON ]] && { echo "$BUNKER_ZONES_JSON"; return; }
-  local root=${BUNKER_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)} p
-  for p in "$root/config/zones.json" "$HOME/NixOS-bunker/config/zones.json" /etc/bunker/zones.json; do
-    [[ -f $p ]] && { echo "$p"; return; }
-  done
-  echo "$root/config/zones.json"
-}
+# Legacy name: public zones path (hidden live only in SFLC layers).
+bunker_deniable_json() { bunker_public_zones_json; }
 bunker_sflc_get() {
   python3 -c "import json;print(json.load(open('$(bunker_sflc_conf)')).get('$1','') or '')"
 }
@@ -26,6 +20,7 @@ bunker_sflc_mode() {
 bunker_unlocked_layers_file() { echo /run/bunker/unlocked-layers; }
 bunker_visible_zones_file() { echo /run/bunker/visible-zones.json; }
 bunker_sflc_state_dir() { echo /run/bunker/sflc; }
+bunker_hidden_zones_file() { echo "$(bunker_sflc_mount_root)/layer${1}/hidden-zones.json"; }
 
 # Load dm_sflc (nixpkgs: dm-sflc.ko → modprobe dm_sflc)
 bunker_sflc_modprobe() {

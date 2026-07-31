@@ -1,13 +1,20 @@
-# Invisible zones (real Shufflecake)
+# Invisible zones (real Shufflecake — plausible deniable)
 
-Hidden units are **whole zones** (VMs). Storage is **Shufflecake** (`dm_sflc`), not a stub dir.
+Hidden units are **whole zones** (friendly names). Storage and **zone identity** live only inside Shufflecake layers. Public `config/zones.json` must never list them.
+
+## Model
+
+| Public (always) | After unlock layer L |
+| --- | --- |
+| `zones.json` — visible VMs only | `/mnt/bunker-sflc/layerL/hidden-zones.json` |
+| `slots.json` — anonymous `d1..dN` runners | TUI merges friendly name → slot |
+| No secret zone names | Start `radio` → `microvm@d1` |
 
 ## Setup (once)
 
 ```bash
-# Default image: /var/lib/bunker/sflc.img (32G sparse) — or set block device in config/shufflecake.json
-sudo bunker-sflc bootstrap          # interactive passphrases for layers 1..N
-# or: printf 'p1\np2\np3\n' | sudo bunker-sflc bootstrap
+sudo bunker-sflc bootstrap          # N layer passphrases on stdin
+# optional interactive: create a deniable hidden zone (name + slot) — stored ONLY in the layer
 ```
 
 `max_layers` / `image_gb` / `device` live in `config/shufflecake.json` (then rebuild host).
@@ -16,19 +23,32 @@ sudo bunker-sflc bootstrap          # interactive passphrases for layers 1..N
 
 | Action | Command / TUI |
 | --- | --- |
-| Hide zone | TUI `i` → `invisible` + `layer` · `w` save · rebuild |
-| Unlock | TUI `u` or `echo pass \| sudo bunker-sflc unlock <layer>` |
-| Lock | `sudo bunker-sflc lock all` |
-| Status | `bunker-sflc status` |
-
-Unlocking layer **L** opens Shufflecake volumes **0..L-1** (lesser secrecy included), mounts them under `/mnt/bunker-sflc/layer*`, and symlinks invisible zone disks there.
+| Unlock | TUI `u` or `echo pass \| sudo bunker-sflc unlock <layer>` — hidden names appear |
+| Hide zone | Unlock first → TUI `i` (assigns free slot) → `w` save |
+| Start | TUI `s` on friendly name (runs the slot VM) |
+| Lock | `sudo bunker-sflc lock all` — hidden names vanish from TUI |
 
 ## Panic
 
-`bunker` → `p`, or `bunker-panic`: wipe `panic=wipe` zones → `bunker-sflc lock all` → best-effort RAM wipe.
+`bunker` → `p`, or `bunker-panic`:
 
-## Honesty
+| Mode | Effect |
+| --- | --- |
+| keep | leave zone data |
+| lock | stop those zone VMs |
+| wipe | shred zone disks (+ layer files if wipe+hidden) |
 
-- Shufflecake is research-grade; presence of the *tool* on disk is not deniable.
-- Secure Boot may block unsigned `dm_sflc` — disable SB or sign the module.
-- Always unlock your highest daily layer when writing (corruption risk on unopened higher layers).
+Then lock all Shufflecake layers + best-effort RAM wipe.
+
+## Honesty (what PD does and does not claim)
+
+**When layers are locked:**
+
+- No friendly hidden names in public `zones.json` / TUI / GNOME launchers
+- Zone disks for hidden VMs are ciphertext inside the cake
+
+**Still visible on the host (not deniable):**
+
+- Shufflecake tool + `dm_sflc` + image file presence
+- Anonymous capacity `d1..dN` in the flake / nix store
+- Templates such as `radio.nix` in a git checkout under `$HOME` if you leave the repo there

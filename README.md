@@ -1,27 +1,28 @@
 # NixOS-bunker
 
-Hardened KVM/microVM workstation. Qubes-like compartments, **not** Qubes/Xen.
+Hardened **KVM**/microVM workstation. Qubes-*like* compartments — **not** Qubes/Xen.
 
-**Broad hardware:** x86_64 · aarch64 · riscv64. **ISO** via QEMU. **Real Shufflecake.** **File copy.** Host clearnet locked.
+Host clearnet locked. Apps in zones. SOCKS-only via netVM (no guest NAT). Ratatui CRUD. Real Shufflecake. Mediated file copy. Broad hardware: x86_64 · aarch64 · riscv64.
 
-## Rebuild (pick your arch)
+## Documentation
+
+| Doc | For |
+| --- | --- |
+| **[docs/USER-GUIDE.md](docs/USER-GUIDE.md)** | Daily operator |
+| **[docs/DEV-GUIDE.md](docs/DEV-GUIDE.md)** | Tree, LOC, how to change code |
+| **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | Vision + short model |
+| [docs/egress.md](docs/egress.md) | SOCKS-only networking |
+| [docs/deniable.md](docs/deniable.md) | Shufflecake hide |
+| [docs/file-copy.md](docs/file-copy.md) | Zone↔zone files |
+| [docs/PLAN.md](docs/PLAN.md) | Locked goals |
+
+## Quick start
 
 ```bash
-sudo bunker-host-net allow
-sudo nixos-rebuild switch --flake .#host-x86_64-linux    # or aarch64 / riscv64
-sudo bunker-host-net lock
-sudo bunker-sflc bootstrap    # once: Shufflecake image + layer passphrases
 bunker
+# TUI: h→a  (allow host WAN)
+# terminal: sudo nixos-rebuild switch --flake .#host-x86_64-linux
+# TUI: h→l  (lock) · b (sflc bootstrap once) · s → net · s → usb · s → personal
 ```
 
-## Operator
-
-| Need | How |
-| --- | --- |
-| Zone CRUD | TUI `bunker` |
-| Hide / unlock | `i` + `u` (or `bunker-sflc unlock`) |
-| File copy | TUI `f` / `bunker-file copy a:/p b:/p` |
-| Clipboard | `bunker-clip` |
-| ISO | TUI `o` |
-
-Docs: `docs/PLAN.md`, `docs/deniable.md`, `docs/file-copy.md`, `docs/ARCHITECTURE.md`.
+Or CLI equivalents — see USER-GUIDE. Replace `hardware-configuration.nix` on real machine.

@@ -26,7 +26,7 @@ let
       null
     else if internet == "i2p" then
       socks + 1000
-    else if internet == "tor" || internet == "tor-fallback" then
+    else if internet == "tor" then
       socks + 2000
     else
       socks; # nym default
@@ -48,10 +48,8 @@ in
 
   networking.useDHCP = false;
   networking.nameservers = [ "10.0.0.1" ];
-  networking.defaultGateway = {
-    address = "10.0.0.1";
-    interface = "eth0";
-  };
+  # NO default gateway — clearnet has nowhere to route. SOCKS/DNS are on-link 10.0.0.1.
+  networking.defaultGateway = lib.mkForce null;
   networking.interfaces.eth0.ipv4.addresses = [
     {
       address = ip;
@@ -87,12 +85,36 @@ in
   // lib.optionalAttrs disposable { BUNKER_DISPOSABLE = "1"; }
   // lib.optionalAttrs (internet == "none") { BUNKER_INTERNET = "none"; };
 
-  networking.firewall.extraCommands = lib.mkIf (internet == "none") (
-    lib.mkAfter ''
-      iptables -P OUTPUT DROP || true
-      iptables -A OUTPUT -o lo -j ACCEPT || true
-      iptables -A OUTPUT -d 10.0.0.0/24 -j ACCEPT || true
-    ''
+  # HARD egress: apps cannot clearnet even if they ignore ALL_PROXY.
+  networking.firewall.extraCommands = lib.mkAfter (
+    if internet == "none" then
+      ''
+        iptables -P OUTPUT DROP || true
+        iptables -F OUTPUT || true
+        iptables -A OUTPUT -o lo -j ACCEPT || true
+        iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT || true
+        iptables -A OUTPUT -d 10.0.0.0/24 -j ACCEPT || true
+      ''
+    else if useProxy then
+      ''
+        iptables -P OUTPUT DROP || true
+        iptables -F OUTPUT || true
+        iptables -A OUTPUT -o lo -j ACCEPT || true
+        iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT || true
+        # Only this zone's SOCKS on netVM + Tor DNS + usbVM
+        iptables -A OUTPUT -d 10.0.0.1 -p tcp --dport ${toString socksPort} -j ACCEPT || true
+        iptables -A OUTPUT -d 10.0.0.1 -p udp --dport 53 -j ACCEPT || true
+        iptables -A OUTPUT -d 10.0.0.1 -p tcp --dport 53 -j ACCEPT || true
+        iptables -A OUTPUT -d 10.0.0.2 -j ACCEPT || true
+      ''
+    else
+      ''
+        iptables -P OUTPUT DROP || true
+        iptables -F OUTPUT || true
+        iptables -A OUTPUT -o lo -j ACCEPT || true
+        iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT || true
+        iptables -A OUTPUT -d 10.0.0.0/24 -j ACCEPT || true
+      ''
   );
 
   environment.etc."bunker/zone.json".text = builtins.toJSON {

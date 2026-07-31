@@ -40,12 +40,7 @@
     initialPassword = "zone";
   };
 
-  # Unique machine-id placeholder — regenerated per instance via activation
-  environment.etc."machine-id-template" = {
-    text = "";
-    mode = "0444";
-  };
-
+  # Unique machine-id — regenerated per instance via activation
   system.activationScripts.uniqueMachineId = ''
     if [ ! -s /etc/machine-id ]; then
       ${pkgs.coreutils}/bin/od -An -N16 -tx1 /dev/urandom | tr -d ' \n' > /etc/machine-id
@@ -97,9 +92,6 @@
       ];
     }
   ];
-
-  nixpkgs.config.allowUnfreePredicate =
-    pkg: builtins.elem (lib.getName pkg) [ "obsidian" ];
 
   environment.variables.BUNKER_ZONE = bunkerZone;
 

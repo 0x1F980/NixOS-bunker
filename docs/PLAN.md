@@ -10,7 +10,7 @@ Host is not an egress/browsing domain. Apps in zones. Assume correct use.
 1. **Broad hardware** — x86_64 · aarch64 · riscv64 (same flake; KVM not Xen)
 2. **ISO/HVM zones** — QEMU per arch (`bunker` TUI `o` / `iso=`); foreign ISO via TCG
 3. **Host clearnet LOCKED** — `bunker-host-net` (lo + `10.0.0.0/24`)
-4. **Guest killswitch ON** — WAN only via netVM
+4. **Guest killswitch ON** + **netVM SOCKS-only** (no guest NAT/forward)
 5. **No daily apps on host** · **mediated clipboard + file copy** · **USB via usbVM**
 6. **Real Shufflecake** — `bunker-sflc bootstrap|unlock` (no stub)
 
@@ -19,7 +19,7 @@ Host is not an egress/browsing domain. Apps in zones. Assume correct use.
 - Ratatui `bunker` — full CRUD (incl. color, kind, net, hide, iso, panic)
 - kinds: appvm | disposable | template
 - panic: keep | lock | wipe
-- invisible + Shufflecake (set `device` for real hide)
+- invisible + Shufflecake (hidden names only inside SFLC layers; public zones.json clean)
 
 ## Rebuild (pick YOUR arch)
 
@@ -41,8 +41,14 @@ sudo bunker-host-net lock
 - [ ] Live verify on each arch after rebuild
 - [ ] riscv64: confirm nixpkgs package set (GNOME/nym) on target board
 
+## Docs
+
+- `docs/USER-GUIDE.md` — operator  
+- `docs/DEV-GUIDE.md` — tree / LOC / change map  
+- `docs/ARCHITECTURE.md` — vision + short model  
+
 ## Non-goals
 
 - Xen/Qubes compatibility
-- Host browsing / host mat2
-- Voice broker
+- Host browsing / host Metadata Cleaner
+- Voice broker (voice anonymizer lives in **personal** via Easy Effects)

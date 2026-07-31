@@ -1,4 +1,5 @@
-# Zone registry on host (/etc/bunker/zones.json + .tsv).
+# Zone registry on host (/etc/bunker/zones.json + slots + .tsv).
+# Public zones only — hidden names live in Shufflecake layerN/hidden-zones.json.
 {
   lib,
   bunkerPublicZones ? import ../config/zones.nix,
@@ -7,6 +8,7 @@
 
 {
   environment.etc."bunker/zones.json".source = ../config/zones.json;
+  environment.etc."bunker/slots.json".source = ../config/slots.json;
 
   environment.etc."bunker/zones.tsv".text = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (

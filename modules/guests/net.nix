@@ -99,7 +99,12 @@ in
   services.tor = {
     enable = true;
     client.enable = true;
-    settings.SocksPort = [ "127.0.0.1:9050" ];
+    settings = {
+      SocksPort = [ "127.0.0.1:9050" ];
+      # Guest DNS only via Tor — never clearnet unbound
+      DNSPort = [ "10.0.0.1:53" ];
+      AutomapHostsOnResolve = true;
+    };
   };
 
   services.i2pd = {
@@ -112,29 +117,8 @@ in
     proto.socksProxy.outproxyEnable = true;
   };
 
-  services.unbound = {
-    enable = true;
-    settings.server = {
-      interface = [
-        "10.0.0.1"
-        "127.0.0.1"
-      ];
-      access-control = [
-        "10.0.0.0/24 allow"
-        "127.0.0.0/8 allow"
-      ];
-      do-not-query-localhost = "yes";
-    };
-    settings.forward-zone = [
-      {
-        name = ".";
-        forward-addr = [
-          "1.1.1.1"
-          "9.9.9.9"
-        ];
-      }
-    ];
-  };
+  # No guest clearnet DNS resolver. Guests use Tor DNSPort :53 or socks5h.
+  services.unbound.enable = false;
 
   networking.useDHCP = false;
   networking.interfaces.eth0.ipv4.addresses = [
@@ -144,16 +128,35 @@ in
     }
   ];
   networking.interfaces.eth1.useDHCP = true;
-  boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
-  networking.firewall.allowedTCPPorts = [ 53 ]
-  ++ lib.attrValues zoneSocks
-  ++ map (p: p + 1000) (lib.attrValues zoneSocks)
-  ++ map (p: p + 2000) (lib.attrValues zoneSocks);
-  networking.firewall.allowedUDPPorts = [ 53 ];
-  networking.firewall.extraCommands = ''
-    iptables -t nat -A POSTROUTING -s 10.0.0.0/24 ! -d 10.0.0.0/24 -o eth1 -j MASQUERADE || true
-  '';
+  # HARD: guests must NOT be NATed to WAN. Only local SOCKS daemons egress.
+  boot.kernel.sysctl."net.ipv4.ip_forward" = 0;
+  boot.kernel.sysctl."net.ipv6.conf.all.forwarding" = 0;
+
+  networking.firewall = {
+    enable = true;
+    allowPing = false;
+    # LAN-facing services only (declared for NixOS firewall helpers)
+    allowedTCPPorts = [ 22 53 ]
+      ++ lib.attrValues zoneSocks
+      ++ map (p: p + 1000) (lib.attrValues zoneSocks)
+      ++ map (p: p + 2000) (lib.attrValues zoneSocks);
+    allowedUDPPorts = [ 53 ];
+    extraCommands = ''
+      # Drop ALL forwarding (no guest→WAN via netVM)
+      iptables -P FORWARD DROP || true
+      iptables -F FORWARD || true
+      # Strip any legacy guest MASQUERADE
+      iptables -t nat -D POSTROUTING -s 10.0.0.0/24 ! -d 10.0.0.0/24 -o eth1 -j MASQUERADE 2>/dev/null || true
+      while iptables -t nat -C POSTROUTING -s 10.0.0.0/24 ! -d 10.0.0.0/24 -o eth1 -j MASQUERADE 2>/dev/null; do
+        iptables -t nat -D POSTROUTING -s 10.0.0.0/24 ! -d 10.0.0.0/24 -o eth1 -j MASQUERADE || break
+      done
+      # INPUT from bunker LAN: only SSH + DNS + SOCKS (already opened via allowed*Ports).
+      # Reject anything else from LAN that is not established.
+      iptables -C INPUT -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT 1 -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    '';
+  };
 
   users.users.nym = {
     isSystemUser = true;

@@ -25,8 +25,11 @@
       forAllSystems = lib.genAttrs systems;
 
       appZones = import ./config/zones.nix;
+      deniableSlots = import ./config/slots.nix;
       isIsoZone = zone: (zone.template or "") == "iso" || ((zone.iso or "") != "");
       nixosAppZones = lib.filterAttrs (_: z: !(isIsoZone z)) appZones;
+      # Public zones + anonymous deniable slots (d1..dN). Hidden names live only in SFLC.
+      allBuildZones = nixosAppZones // deniableSlots;
 
       mkGuest =
         system: name: modules:
@@ -35,7 +38,7 @@
           specialArgs = {
             inherit self;
             bunkerZone = name;
-            bunkerAppZones = appZones;
+            bunkerAppZones = allBuildZones;
           };
           modules = [
             microvm.nixosModules.microvm
@@ -63,7 +66,7 @@
               inherit name zone;
             })
           ]
-        ) nixosAppZones;
+        ) allBuildZones;
 
       zonePackages =
         system:
@@ -120,7 +123,7 @@
       ) { } systems;
     in
     {
-      inherit appZones systems;
+      inherit appZones deniableSlots systems;
 
       nixosConfigurations = hostConfigs
       // {
@@ -129,20 +132,7 @@
       }
       // guestConfigs;
 
-      packages = forAllSystems (
-        system:
-        (zonePackages system)
-        // {
-          default = (import nixpkgs { inherit system; }).writeText "bunker-readme" ''
-            # Pick YOUR arch (broad hardware — not x86-only):
-            nixos-rebuild switch --flake .#host-x86_64-linux
-            nixos-rebuild switch --flake .#host-aarch64-linux
-            nixos-rebuild switch --flake .#host-riscv64-linux
-            # or legacy: .#host  (== x86_64)
-            bunker
-          '';
-        }
-      );
+      packages = forAllSystems (system: zonePackages system);
 
       apps = forAllSystems (
         system:

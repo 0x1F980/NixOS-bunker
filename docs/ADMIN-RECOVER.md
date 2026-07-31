@@ -5,6 +5,8 @@
 | `bunker` | `changeme-bunker` |
 | `admin` / `root` | `changeme-admin` |
 
+Shufflecake layer passphrases are **yours alone** — set them at `bunker-sflc bootstrap`. Do not store them in the repo or public config.
+
 ```bash
 cd ~/NixOS-bunker
 sudo nixos-rebuild switch --flake .#host

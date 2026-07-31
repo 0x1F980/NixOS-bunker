@@ -31,7 +31,6 @@ in
     "d /run/bunker/sflc 0700 root root -"
     "d /mnt/bunker-sflc 0700 root root -"
     "d /var/lib/bunker 0750 root root -"
-    "d /var/lib/bunker/sflc-keys 0700 root root -"
     "d /var/lib/bunker/file-xfer 0700 root root -"
   ];
 
@@ -52,9 +51,6 @@ in
     '')
     (pkgs.writeShellScriptBin "bunker-panic" ''
       exec /etc/bunker/scripts/bunker-panic.sh "$@"
-    '')
-    (pkgs.writeShellScriptBin "bunker-file" ''
-      exec /etc/bunker/scripts/file-copy.sh "$@"
     '')
   ];
 }
