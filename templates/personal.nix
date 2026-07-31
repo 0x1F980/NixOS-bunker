@@ -1,4 +1,4 @@
-# Personal — daily identity, mail, research, media, recon (not inherited by work/radio).
+# Personal — daily identity, mail, research, media, recon (not inherited by work/slots).
 { pkgs, lib, ... }:
 
 {

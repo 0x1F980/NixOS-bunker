@@ -12,7 +12,7 @@ Host clearnet locked. Apps in zones. SOCKS-only via netVM (no guest NAT). Ratatu
 | **[docs/DEV-GUIDE.md](docs/DEV-GUIDE.md)** | Tree, LOC, how to change code |
 | **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | Vision + short model |
 | [docs/egress.md](docs/egress.md) | SOCKS-only networking |
-| [docs/deniable.md](docs/deniable.md) | Shufflecake hide |
+| [docs/deniable.md](docs/deniable.md) | Skjulte zoner — korrekt brug (PD er ikke magi) |
 | [docs/file-copy.md](docs/file-copy.md) | Zone↔zone files |
 | [docs/PLAN.md](docs/PLAN.md) | Locked goals |
 

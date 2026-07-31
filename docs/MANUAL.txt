@@ -6,7 +6,10 @@ MODEL
   kind=appvm|disposable|template
   net=nym|i2p|tor|nym-tor|i2p-tor|tor-nym|i2p-nym|none
   cascades = inner-outer (Tor↔Nym, Tor↔I2P, Nym↔Tor/I2P); not I2P-as-outer
-  color · deniable hide (SFLC) · panic keep|lock|wipe · ISO
+  color · deniable hide (SFLC — only if YOU use it right) · panic · ISO
+  PD: never put secret zone names in zones.json/git; unlock→i→w; lock when done
+  No preinstalled secret zone — you create names after unlock
+
 
 TUI (bunker) — primary UI for non-experts
   s start (net|usb|all|zone)   e term into zone   v usb vid:pid

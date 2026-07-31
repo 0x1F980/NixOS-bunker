@@ -112,8 +112,18 @@ merges
 .I layerN/hidden-zones.json
 and maps names to anonymous slots
 .BR d1..dN .
+.P
+This is
+.B not
+automatic plausible deniability from config alone. You must:
+bootstrap your own layer passphrases, create/hide names only after unlock,
+never commit secret names to git/public config, and lock layers when finished.
+There is no preinstalled secret zone name.
 See
-.IR docs/deniable.md .
+.IR docs/deniable.md
+(simple Danish) and
+.IR docs/USER-GUIDE.md
+section 7.
 .SH SEE ALSO
 .IR docs/USER-GUIDE.md ,
 .IR docs/deniable.md ,

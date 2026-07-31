@@ -1,56 +1,52 @@
-# Invisible zones (real Shufflecake — plausible deniable)
+# Skjulte zoner (Shufflecake) — til dig der bare vil bruge det
 
-Hidden units are **whole zones** (friendly names). Storage and **zone identity** live only inside Shufflecake layers. Public `config/zones.json` must never list them.
+Hemmelige VM-navne og deres diske bor **kun** inde i et Shufflecake-lag.  
+Public config (`zones.json`) må **aldrig** kende dem.
 
-## Model
+**Vigtigt:** Det er **ikke** magi i config. Det virker kun hvis **du** bruger det rigtigt. Forkert brug = ingen plausible deniability.
 
-| Public (always) | After unlock layer L |
+## Du skal gøre dette (ellers er det ikke skjult)
+
+1. **Bootstrap én gang** — TUI `b` eller `sudo bunker-sflc bootstrap`  
+   Vælg **egne** lag-passphrases. Gem dem **ikke** i git, chat, notes på hosten eller denne repo.
+2. **Opret hemmelig zone kun efter unlock** — TUI `u` → lag → passphrase → `i` (hide) på en zone → `w`  
+   Eller svar “ja” ved bootstrap og giv et **nyt** navn (kun dig kender det).
+3. **Aldrig** skriv hemmelige zonenavne i:
+   - `config/zones.json` / `/var/lib/bunker/zones.json` (public)
+   - README, commits, issues, Discord
+   - filer i `~/nixos-bunker` der synces/backes op
+4. **Lås når du er færdig** — `sudo bunker-sflc lock all`  
+   Så forsvinder navnene fra TUI. Uden passphrase kan zonen ikke startes.
+5. **Repo på disken:** hvis du beholder git-checkout i home, kan templates (fx SDR-pakker) stadig ses. Det er **kapacitet**, ikke dit hemmelige navn — men slet/flyt repo hvis du vil mindske spor.
+
+## Daglig brug
+
+| Handling | TUI / kommando |
 | --- | --- |
-| `zones.json` — visible VMs only | `/mnt/bunker-sflc/layerL/hidden-zones.json` |
-| `slots.json` — anonymous `d1..dN` runners | TUI merges friendly name → slot |
-| No secret zone names | Start `radio` → `microvm@d1` |
+| Lås op | `u` → lagnummer → passphrase |
+| Skjul en zone | efter unlock: `i` → `w` |
+| Start | `s` (kører anonym slot `d1`… bagved) |
+| Terminal ind | `e` |
+| Lås | `bunker-sflc lock all` |
 
-## Setup (once)
+## Model (kort)
 
-```bash
-sudo bunker-sflc bootstrap          # N layer passphrases on stdin
-# optional interactive: create a deniable hidden zone (name + slot) — stored ONLY in the layer
-```
-
-`max_layers` / `image_gb` / `device` live in `config/shufflecake.json` (then rebuild host).
-
-## Daily
-
-| Action | Command / TUI |
+| Altid synligt (public) | Kun efter unlock |
 | --- | --- |
-| Unlock | TUI `u` or `echo pass \| sudo bunker-sflc unlock <layer>` — hidden names appear |
-| Hide zone | Unlock first → TUI `i` (assigns free slot) → `w` save |
-| Start | TUI `s` on friendly name (runs the slot VM) |
-| Lock | `sudo bunker-sflc lock all` — hidden names vanish from TUI |
+| `personal` / `work` / `browse` / `vault` | Dine hemmelige navne i `layerN/hidden-zones.json` |
+| Anonyme slots `d1`…`d3` (tom kapacitet) | Disk + navn mapped til et slot |
 
-## Panic
+Eksempel efter unlock: hemmeligt navn → slot `d1` (kun dig kender navnet).
 
-`bunker` → `p`, or `bunker-panic`:
+## Hvad det IKKE lover (honesty)
 
-| Mode | Effect |
-| --- | --- |
-| keep | leave zone data |
-| lock | stop those zone VMs |
-| wipe | shred zone disks (+ layer files if wipe+hidden) |
+Selv ved korrekt brug kan en tekniker se:
 
-Then lock all Shufflecake layers + best-effort RAM wipe.
+- at Shufflecake / `dm_sflc` findes
+- at der findes anonyme slots `d1`… i systemet
+- git/templates hvis repo ligger i home
 
-## Honesty (what PD does and does not claim)
+Det lover **ikke** “denne maskine har aldrig haft skjulte VM’er”.  
+Det lover: **uden din lag-passphrase findes dit hemmelige zonenavn og dens data ikke i klartekst.**
 
-**When layers are locked:**
-
-- No friendly hidden names in public `zones.json` / TUI / GNOME launchers
-- Zone disks for hidden VMs are ciphertext inside the cake
-
-**Still visible on the host (not deniable):**
-
-- Shufflecake tool + `dm_sflc` + image file presence
-- Anonymous capacity `d1..dN` in the flake / nix store
-- Templates such as `radio.nix` in a git checkout under `$HOME` if you leave the repo there
-
-**Ops note:** editable public registry on the host is `/var/lib/bunker/zones.json` (seeded from `/etc/bunker/zones.json`). Do not expect `/etc/bunker/zones.json` to be writable.
+Se også `man bunker` og [ADMIN-RECOVER.md](ADMIN-RECOVER.md) (login-passwords ≠ SFLC-passphrases).

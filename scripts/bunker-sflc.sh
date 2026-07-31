@@ -208,7 +208,7 @@ seed_hidden_prompt() {
   local ans name slot usbjson
   read -r -p "Create a deniable hidden zone now? [y/N] " ans || true
   [[ ${ans,,} == y || ${ans,,} == yes ]] || return 0
-  read -r -p "Friendly name (e.g. radio): " name || true
+  read -r -p "Friendly name (secret; only you know it): " name || true
   [[ -n ${name:-} ]] || return 0
   read -r -p "Slot [d1/d2/d3] (default d1): " slot || true
   slot=${slot:-d1}
@@ -219,7 +219,7 @@ seed_hidden_prompt() {
 import json,sys
 name,slot,usb,path=sys.argv[1:5]
 usbs=[x.strip() for x in usb.split(",") if x.strip()] if usb else []
-json.dump({name:{"slot":slot,"layer":1,"color":"orange","internet":"none","usb":usbs,"panic":"keep","apps":[]}}, open(path,"w"), indent=2)
+json.dump({name:{"slot":slot,"layer":1,"color":"gray","usb":usbs,"panic":"keep","apps":[]}}, open(path,"w"), indent=2)
 print(f"pending hidden zone '{name}' → slot {slot} (applied on first unlock of layer 1)")
 PY
 }

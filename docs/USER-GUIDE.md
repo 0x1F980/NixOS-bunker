@@ -123,21 +123,31 @@ Devices attach to **usbVM**, then to the zone. See [usb.md](usb.md).
 
 ---
 
-## 7. Invisible zones (Shufflecake)
+## 7. Skjulte zoner (Shufflecake) — korrekt brug
 
-Hidden zone **names** are not in public config. Unlock a layer → they appear in TUI → start them. Lock → they vanish.
+**Ikke magi:** hide i TUI alene gør dig ikke “usynlig”. Plausible deniability kræver at du **kun** gemmer hemmelige navne i Shufflecake-laget, bruger egne passphrases, og **ikke** skriver dem i public config/git.
+
+### Gør sådan (dumt-simpelt)
+
+1. Første gang: TUI **`b`** (bootstrap) — husk lag-koderne **selv** (ikke i repo).  
+2. Dagligt: **`u`** → lag → kode → skjulte zoner dukker op.  
+3. Skjul en zone: **`i`** → **`w`**. Start: **`s`**. Terminal: **`e`**.  
+4. Færdig: `sudo bunker-sflc lock all` — navnene forsvinder igen.  
+5. **Aldrig** put hemmelige zonenavne i `zones.json`, commits eller noter på hosten.
+
+Der er **ingen** forudinstalleret hemmelig zone. Anonyme slots (`d1`…) er kun kapacitet; **du** opretter hemmelige navne ved unlock/hide.
+
+Detaljer + honesty (hvad der stadig kan ses): [deniable.md](deniable.md).
 
 ```bash
-# First time: sudo bunker-sflc bootstrap  (optionally create a hidden zone into the layer)
-# Daily:
-#   TUI u → layer # → passphrase   → hidden zones show up
-#   TUI i (after unlock) → assign free slot → w save
-#   TUI s to start · bunker-term <name>
+# First time
+sudo bunker-sflc bootstrap
+# Daily
+#   TUI u → layer → passphrase
+#   TUI i → w   (hide)
+#   TUI s / e
 sudo bunker-sflc lock all
-bunker-sflc status
 ```
-
-See [deniable.md](deniable.md).
 
 ---
 
