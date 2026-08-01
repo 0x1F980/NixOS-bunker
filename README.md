@@ -26,3 +26,7 @@ bunker
 ```
 
 Or CLI equivalents — see USER-GUIDE. Replace `hardware-configuration.nix` on real machine.
+
+## Branding
+
+neofetch logo: [`branding/nixos-bunker.txt`](branding/nixos-bunker.txt) — `bunker-neofetch`

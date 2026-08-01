@@ -14,37 +14,5 @@
     "usb": [],
     "apps": [],
     "panic": "keep"
-  },
-  "d2": {
-    "template": "desktop",
-    "kind": "appvm",
-    "ip": "10.0.0.22",
-    "mac": "02:b0:00:00:00:22",
-    "socks": 1092,
-    "mem": 1536,
-    "diskGb": 20,
-    "vcpu": 2,
-    "disposable": false,
-    "color": "gray",
-    "internet": "tor",
-    "usb": [],
-    "apps": [],
-    "panic": "keep"
-  },
-  "d3": {
-    "template": "vault",
-    "kind": "appvm",
-    "ip": "10.0.0.23",
-    "mac": "02:b0:00:00:00:23",
-    "socks": null,
-    "mem": 1536,
-    "diskGb": 20,
-    "vcpu": 2,
-    "disposable": false,
-    "color": "gray",
-    "internet": "none",
-    "usb": [],
-    "apps": [],
-    "panic": "keep"
   }
 }

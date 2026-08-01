@@ -1,4 +1,5 @@
-# Dev — desktop + editor/compiler + Julia (math).
+# Dev — desktop + editor/compiler (networked work zone).
+# Offline math (Julia) lives in vault — air-gapped.
 { pkgs, ... }:
 
 {
@@ -7,6 +8,5 @@
     vscodium
     gcc
     git
-    julia
   ];
 }

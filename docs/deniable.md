@@ -33,18 +33,20 @@ Public config (`zones.json`) må **aldrig** kende dem.
 
 | Altid synligt (public) | Kun efter unlock |
 | --- | --- |
-| `personal` / `work` / `browse` / `vault` | Dine hemmelige navne i `layerN/hidden-zones.json` |
-| Anonyme slots `d1`…`d3` (tom kapacitet) | Disk + navn mapped til et slot |
+| `personal` / `work` / `browse` / `vault` | Dit hemmelige **radio**-navn i `layerN/hidden-zones.json` |
+| Ét anonymt slot `d1` (template **radio** only) | Disk + navn mapped til `d1` |
 
-Eksempel efter unlock: hemmeligt navn → slot `d1` (kun dig kender navnet).
+**Policy:** Kun **radio** er deniable. Ingen deniable desktop/vault-slots.
+
+Eksempel efter unlock: hemmeligt navn → slot `d1` (radio; kun dig kender navnet).
 
 ## Hvad det IKKE lover (honesty)
 
 Selv ved korrekt brug kan en tekniker se:
 
 - at Shufflecake / `dm_sflc` findes
-- at der findes anonyme slots `d1`… i systemet
-- git/templates hvis repo ligger i home
+- at der findes anonym slot `d1` (radio-kapacitet) i systemet
+- git/templates (inkl. `templates/radio.nix`) hvis repo ligger i home
 
 Det lover **ikke** “denne maskine har aldrig haft skjulte VM’er”.  
 Det lover: **uden din lag-passphrase findes dit hemmelige zonenavn og dens data ikke i klartekst.**

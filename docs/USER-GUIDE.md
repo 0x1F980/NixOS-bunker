@@ -99,7 +99,18 @@ sudo bunker-host-net lock
 
 ---
 
-## 5. Clipboard & files
+## 5. Zone roles (what goes where)
+
+| Zone | For |
+| --- | --- |
+| **vault** | Air-gap (`internet=none`): secrets, **Julia**, **Obsidian**, Zotero, Kiwix, LibreOffice, Stellarium, local Ollama, offline media scrub — **not** radio/SDR |
+| **personal** | Mail/comms/voice + radio/recon (needs netVM / usbVM) |
+| **work** | Networked dev (editors/compilers) — not offline math |
+| **browse** | Disposable browser |
+
+---
+
+## 6. Clipboard & files
 
 ```bash
 bunker-clip send personal
@@ -112,7 +123,7 @@ See [file-copy.md](file-copy.md).
 
 ---
 
-## 6. USB
+## 7. USB
 
 ```bash
 bunker-usb-attach <zone> 0bda:2838
@@ -123,7 +134,7 @@ Devices attach to **usbVM**, then to the zone. See [usb.md](usb.md).
 
 ---
 
-## 7. Skjulte zoner (Shufflecake) — korrekt brug
+## 8. Skjulte zoner (Shufflecake) — korrekt brug
 
 **Ikke magi:** hide i TUI alene gør dig ikke “usynlig”. Plausible deniability kræver at du **kun** gemmer hemmelige navne i Shufflecake-laget, bruger egne passphrases, og **ikke** skriver dem i public config/git.
 
@@ -135,7 +146,7 @@ Devices attach to **usbVM**, then to the zone. See [usb.md](usb.md).
 4. Færdig: `sudo bunker-sflc lock all` — navnene forsvinder igen.  
 5. **Aldrig** put hemmelige zonenavne i `zones.json`, commits eller noter på hosten.
 
-Der er **ingen** forudinstalleret hemmelig zone. Anonyme slots (`d1`…) er kun kapacitet; **du** opretter hemmelige navne ved unlock/hide.
+Der er **ingen** forudinstalleret hemmelig zone. Kun **ét** anonymt slot `d1` (**radio**) er deniable-kapacitet; **du** opretter det hemmelige navn ved unlock/hide.
 
 Detaljer + honesty (hvad der stadig kan ses): [deniable.md](deniable.md).
 

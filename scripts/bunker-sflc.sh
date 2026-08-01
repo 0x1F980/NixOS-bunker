@@ -210,8 +210,9 @@ seed_hidden_prompt() {
   [[ ${ans,,} == y || ${ans,,} == yes ]] || return 0
   read -r -p "Friendly name (secret; only you know it): " name || true
   [[ -n ${name:-} ]] || return 0
-  read -r -p "Slot [d1/d2/d3] (default d1): " slot || true
+  read -r -p "Slot [d1 = radio deniable] (default d1): " slot || true
   slot=${slot:-d1}
+  [[ $slot == d1 ]] || { echo "ERROR: only slot d1 (radio) is configured for deniable use" >&2; exit 1; }
   read -r -p "USB vid:pid list (comma, empty=none): " usbjson || true
   # Unlock layer 1 is not done yet at bootstrap — seed file written on first unlock via pending
   mkdir -p "$(bunker_sflc_state_dir)"

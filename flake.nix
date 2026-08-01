@@ -34,7 +34,7 @@
       nixosAppZones = lib.filterAttrs (
         name: z: !(isIsoZone z) && !(isBrokerZone name z)
       ) appZones;
-      # Public zones + anonymous deniable slots (d1..dN). Hidden names live only in SFLC.
+      # Public zones + anonymous deniable slot d1 (radio only). Hidden names live only in SFLC.
       allBuildZones = nixosAppZones // deniableSlots;
 
       mkGuest =

@@ -22,6 +22,7 @@ let
     bunker-wipe = "zone-wipe.sh";
     bunker-zone = "bunker-zone.sh";
     bunker-term = "zone-term.sh";
+    bunker-neofetch = "bunker-neofetch.sh";
   };
 in
 {
@@ -123,6 +124,7 @@ in
 
   environment.etc."bunker/scripts".source = ../scripts;
   environment.etc."bunker/MANUAL".source = ../docs/MANUAL.txt;
+  environment.etc."bunker/branding".source = ../branding;
 
   environment.systemPackages =
     with pkgs;
@@ -139,6 +141,7 @@ in
       wl-clipboard
       socat
       sshpass
+      neofetch
       gnome-console
       gnome-control-center
       gnome-disk-utility

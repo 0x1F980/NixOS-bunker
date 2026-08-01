@@ -1,14 +1,12 @@
-# Personal — daily identity, mail, research, media, recon (not inherited by work/slots).
+# Personal — daily identity, mail, voice, recon/radio (not vault offline knowledge).
+# Offline notes/math/office → vault. Radio/SDR here or deniable radio slot.
 { pkgs, lib, ... }:
 
 {
   imports = [ ./desktop.nix ];
 
-  nixpkgs.config.allowUnfreePredicate =
-    pkg: builtins.elem (lib.getName pkg) [ "obsidian" ];
-
   environment.systemPackages = with pkgs; [
-    # Security / crypto / wipe
+    # Security tokens (day-to-day; deep secrets stay in vault)
     kdePackages.kleopatra
     nitrokey-app
     clamav
@@ -23,28 +21,16 @@
     hackrf
     rtl_433
     python3Packages.meshtastic
-    # frigate: heavy NVR — enable when you have cameras; keep out of default guest build
 
-    # Comms
+    # Comms (needs netVM SOCKS)
     thunderbird
     neomutt
     element-desktop
 
-    # Dev / AI
-    ollama
-
-    # Notes / research / offline knowledge
-    obsidian
-    zotero
-    kiwix-tools
-
-    # Media / office / maps
-    kdenlive
-    libreoffice
-    stellarium
+    # Maps (may fetch tiles via proxy)
     kdePackages.marble
 
-    # System / backup (ventoy is unfree+insecure — use host ISO tools instead)
+    # System / backup
     glances
     mission-center
     zellij
@@ -53,9 +39,6 @@
 
     # Voice anonymize (pitch / formant via Easy Effects)
     easyeffects
-
-    # Metadata scrub (Tails UI; uses mat2 under the hood)
-    metadata-cleaner
   ];
 
   services.pcscd.enable = true;
